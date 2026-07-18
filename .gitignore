@@ -1,0 +1,24 @@
+# macOS
+.DS_Store
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+*.moved-aside
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Packages/*/.build/
+
+# Package.resolved 要进 git（上游无 API 稳定性承诺，必须 pin 住解析结果）
+!Package.resolved
+
+# 签名与分发
+*.dmg
+*.zip
+ExportOptions.plist

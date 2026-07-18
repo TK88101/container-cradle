@@ -1,0 +1,372 @@
+import ContainerCore
+import ContainerResource
+import Foundation
+
+/// **真运行时。** `ContainerRuntimeClient` 的第三个实现（另两个是 Fake 与将来的 CLI 逃生舱）。
+///
+/// 因为 D1，把 App 从假数据切到真运行时，是 composition root 里**改一行**的事——
+/// `ContainerListStore` 和所有 view 一个字都不用动。
+///
+/// ## 每个上游调用都套 `XPCTimeout`
+///
+/// 不可省（R5）：XPC 对端挂死时 `await` 永不返回，会冻住整个 supervisor——
+/// 而进程还活着、图标还在、日志还在滚，看不出任何异常。
+public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
+
+    private let upstream: any UpstreamClient
+    private let paths: any PathChecker
+    private let errors: RuntimeErrorMapper
+    private let timeout: Duration
+
+    /// usage enrichment 的**全局预算**（★R3/★R4/★R5，见 `VolumeUsageCollector`）。
+    /// 与 per-call `timeout` 是两个尺度：后者钉单卷，前者钉整场。
+    private let usageBudget: Duration
+
+    /// - Parameter prober: 运行时死活的**唯一权威**（R14）。错误映射要问它，
+    ///   而不是去猜 XPC 错误码的意思。
+    public init(
+        prober: any RuntimeProber = ApiserverProber(),
+        timeout: Duration = .seconds(5)
+    ) {
+        self.init(
+            upstream: LiveUpstreamClient(),
+            paths: FileSystemPathChecker(),
+            prober: prober,
+            timeout: timeout
+        )
+    }
+
+    /// 测试入口：注入替身。`internal` —— 上游类型不会因此漏出 package。
+    init(
+        upstream: any UpstreamClient,
+        paths: any PathChecker,
+        prober: any RuntimeProber,
+        timeout: Duration = .seconds(5),
+        usageBudget: Duration = .seconds(8)
+    ) {
+        self.upstream = upstream
+        self.paths = paths
+        self.errors = RuntimeErrorMapper(prober: prober)
+        self.timeout = timeout
+        self.usageBudget = usageBudget
+    }
+
+    // MARK: - list
+
+    public func list() async throws(RuntimeError) -> [Container] {
+        let snapshots: [ContainerSnapshot]
+        do {
+            snapshots = try await XPCTimeout.race(after: timeout) {
+                try await upstream.list()
+            }
+        } catch {
+            throw await errors.map(error, containerID: nil)
+        }
+
+        do {
+            return try snapshots.map(SnapshotMapper.map)
+        } catch {
+            // 映射失败 → **整个列表失败**，不静默丢掉那个容器（理由见 SnapshotMapper）。
+            throw RuntimeError.operationFailed(reason: "容器映射失败：\(error)")
+        }
+    }
+
+    // MARK: - start
+
+    /// 上游**没有 `start(id:)`**（已核实源码）。「把停着的容器拉起来」是一段序列，
+    /// 照抄官方 `container start`：
+    ///
+    /// `get` → 幂等短路 → **virtiofs mount 源校验** → `bootstrap` → `process.start()`，失败回滚 `stop`。
+    public func start(id: ContainerID) async throws(RuntimeError) {
+        let snapshot = try await fetch(id)
+
+        // 幂等短路。supervisor 会重复下达 start（轮询间隔内容器可能还没起来），
+        // 「已经在跑」必须静默成功——官方 CLI 自己就这么短路的。
+        guard snapshot.status != .running else { return }
+
+        // ★★ **R13 的生死线，也是这个 App 的生死线。**
+        //
+        // 位置很重要：这段校验在下面那个 `do` 的**外面**。
+        //
+        // 放进 `do` 里，`.mountSourceUnavailable` 就会落进 catch，被 `errors.map` 重新包装成
+        // `.operationFailed` → 判成 `.transient` → 计入熔断 → 退避 1→2→4→8→16 秒 →
+        // **31 秒后熔断放弃**。而「Mac 重启后外置盘还没挂上」要几十秒到几分钟才就绪——
+        // supervisor 会死在它唯一该活着的那一刻，且编译绿、测试绿、看不出任何异常。
+        //
+        // 靠「记得别在 catch 里包装它」是打地鼠。**靠代码形状**：它根本落不进那个 catch。
+        // （`RuntimeErrorMapper` 里还有第二道：domain 错误原样放行。两道都在，因为这一条值得。）
+        for mount in snapshot.configuration.mounts where mount.isVirtiofs {
+            guard paths.fileExists(atPath: mount.source) else {
+                throw RuntimeError.mountSourceUnavailable(path: mount.source)
+            }
+        }
+
+        do {
+            try await XPCTimeout.race(after: timeout) {
+                try await upstream.launchInitProcess(snapshot)
+            }
+        } catch {
+            // 失败必须回滚，否则留下半启动状态（官方 CLI 同样如此）。
+            //
+            // ★ **回滚本身也必须套超时**（codex review 抓到的 P1）。
+            // `try?` 只吞错误，**吞不掉挂死**：XPC 若在这一句上不回话，`start()` 就永远不返回，
+            // supervisor 当场冻住——正是 R5 要防的那件事，而且发生在最坏的位置：
+            // bootstrap 刚失败的回滚路径，恰恰是 R13 场景（外置盘没挂上、容器起不来）的高频路径。
+            //
+            // 「每个上游调用都套 XPCTimeout」这句话写在本文件开头，却漏了这一句。
+            // 注释拦不住漏写，测试才行（`rollbackDoesNotHangWhenStopHangs`）。
+            try? await XPCTimeout.race(after: timeout) {
+                try await upstream.stop(id: id.rawValue)
+            }
+
+            throw await errors.map(error, containerID: id)
+        }
+    }
+
+    // MARK: - stop
+
+    public func stop(id: ContainerID) async throws(RuntimeError) {
+        let snapshot = try await fetch(id)
+
+        // 幂等：已经停了就静默成功。
+        guard snapshot.status != .stopped else { return }
+
+        do {
+            try await XPCTimeout.race(after: timeout) {
+                try await upstream.stop(id: id.rawValue)
+            }
+        } catch {
+            throw await errors.map(error, containerID: id)
+        }
+    }
+
+    // MARK: - followLogs
+
+    /// 上游约定 `logs(id:)` 返回 `[stdio, boot]`（已核实源码：`ContainerClient.swift:266`）。
+    /// M4 明确不接 boot log（Day 9 计划 §1「明确不做」）——只 wrap `fhs[0]`。
+    static let logBufferLimit = 1024
+
+    /// 跟随容器 stdout。**裸流，未脱敏**——D-B'（Day 9 计划）钉死它唯一允许的消费者是
+    /// core 的 `LogTailer`（`BoundaryScanner` 守）。这一层只负责把 fd 的字节接成完整行，
+    /// 不做任何脱敏判断：脱敏需要该容器的密钥集合，那是 core 才有的信息。
+    public func followLogs(id: ContainerID) async throws(RuntimeError) -> AsyncThrowingStream<LogLine, any Error> {
+        let handles: [FileHandle]
+        do {
+            handles = try await XPCTimeout.race(after: timeout) {
+                try await upstream.logs(id: id.rawValue)
+            }
+        } catch {
+            throw await errors.map(error, containerID: id)
+        }
+
+        // 上游无 API 稳定性承诺（R1）——形状哪天变了，响亮地失败，不是对着越界下标崩溃。
+        guard handles.count >= 2 else {
+            for handle in handles { try? handle.close() }
+            throw RuntimeError.operationFailed(
+                reason: "上游 logs(id:) 返回的 FileHandle 数量异常：\(handles.count)"
+            )
+        }
+
+        let stdio = handles[0]
+
+        // stdio 之外的 handle 全部立刻关闭：boot log（`handles[1]`）不用，且上游若哪天
+        // 多返回一个 fd（形状扩了），这里也不会把多出来的 fd 泄漏掉——只留 stdio 交给流持有。
+        // 不然每次 follow 都会泄漏（codex review P1-6 关 boot；P2 关掉可能的余剰）。
+        for handle in handles[1...] {
+            try? handle.close()
+        }
+
+        return AsyncThrowingStream(bufferingPolicy: .bufferingNewest(Self.logBufferLimit)) { continuation in
+            // `nonisolated(unsafe)`：`readabilityHandler` 的闭包类型要求 `@Sendable`，
+            // 但它背后是**一个** `FileHandle` 的**一条**串行 dispatch read source——
+            // Apple 的文档与实现都保证同一个 handle 的回调不会并发触发，
+            // 所以这里不存在真实的数据竞争，只是编译器看不穿这层保证。
+            nonisolated(unsafe) var step = LogFollowStep()
+
+            stdio.readabilityHandler = { handle in
+                let data = handle.availableData
+
+                switch step.handle(data: data, seekToEnd: { try handle.seekToEnd() }) {
+                case .lines(let lines):
+                    for line in lines { continuation.yield(line) }
+
+                case .finished(let trailing, let error):
+                    for line in trailing { continuation.yield(line) }
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            // 三路终止（消费者取消 / 流内部 finish(throwing:) / 消费者优雅收工）都走这一个
+            // 回调——`AsyncThrowingStream` 保证它恰好触发一次，不必在每个分支各自记得清理
+            // （L6：桥必须关掉自己开的 fd，不然取消路径会悄悄泄漏）。
+            continuation.onTermination = { _ in
+                stdio.readabilityHandler = nil
+                try? stdio.close()
+            }
+        }
+    }
+
+    // MARK: - stats
+
+    /// 单发一次 = 一个瞬时计数器快照。CPU% 需要相邻两次样本算速率，那是
+    /// core `StatsCollector` 的事，这里只负责「问一次，答一次」。
+    public func stats(id: ContainerID) async throws(RuntimeError) -> ContainerStatsSample {
+        do {
+            let stats = try await XPCTimeout.race(after: timeout) {
+                try await upstream.stats(id: id.rawValue)
+            }
+            return StatsMapper.map(stats)
+        } catch {
+            throw await errors.map(error, containerID: id)
+        }
+    }
+
+    // MARK: - M5：volume（Day 10）
+
+    public func listVolumes() async throws(RuntimeError) -> [Volume] {
+        let configurations: [VolumeConfiguration]
+        do {
+            configurations = try await XPCTimeout.race(after: timeout) {
+                try await upstream.listVolumes()
+            }
+        } catch {
+            throw await errors.map(error, containerID: nil)
+        }
+
+        // enrichment：fail-soft（单卷失败→nil）+ 并发 ≤4 + 全局预算 no-wait + 闭门。
+        // 每个 fetch 自己再套 per-call XPCTimeout——「每个上游调用无一豁免」（D-F）。
+        let usageUpstream = self.upstream
+        let perCallTimeout = self.timeout
+        let collector = VolumeUsageCollector { name in
+            try await XPCTimeout.race(after: perCallTimeout) {
+                try await usageUpstream.volumeUsedBytes(name: name)
+            }
+        }
+        let usage = await collector.collect(
+            names: configurations.map(\.name),
+            budget: usageBudget
+        )
+
+        return configurations.map { VolumeMapper.map($0, usedBytes: usage[$0.name]) }
+    }
+
+    /// identity-only（★R2）：裸 list 按名找，**不跑 usage**——这是删除前复核的快路径，
+    /// 带 enrichment 的 `listVolumes()` 会把「复核 → 删除」的窗口撑成秒/分钟级。
+    /// 不存在 = nil：not-found 没法从 XPC 错误文本可靠区分（R14），用列表缺席表达。
+    public func inspectVolume(named name: String) async throws(RuntimeError) -> Volume? {
+        let configurations: [VolumeConfiguration]
+        do {
+            configurations = try await XPCTimeout.race(after: timeout) {
+                try await upstream.listVolumes()
+            }
+        } catch {
+            throw await errors.map(error, containerID: nil)
+        }
+
+        guard let configuration = configurations.first(where: { $0.name == name }) else {
+            return nil
+        }
+        return VolumeMapper.map(configuration, usedBytes: nil)
+    }
+
+    /// 语义 =「删除这个 identity」（★R3，最后防线）。store 的 `verifying` 给 UX；
+    /// 这里的复核保证**绕过 store 直调也删不掉同名重建的新卷**。
+    /// 复核与 delete 之间仍有 ms 级窗口（server 只有按名删）——已知残余，压不为零。
+    public func deleteVolume(_ target: Volume) async throws(RuntimeError) {
+        guard let current = try await inspectVolume(named: target.name) else {
+            throw RuntimeError.operationFailed(
+                reason: "volume '\(target.name)' no longer exists"
+            )
+        }
+        guard current.matchesIdentity(of: target) else {
+            throw RuntimeError.operationFailed(
+                reason: "volume '\(target.name)' has changed since it was shown (it may have been recreated); refresh and confirm again"
+            )
+        }
+
+        do {
+            try await XPCTimeout.race(after: timeout) {
+                try await upstream.deleteVolume(name: target.name)
+            }
+        } catch {
+            throw await errors.map(error, containerID: nil)
+        }
+    }
+
+    // MARK: - M5：image（Day 10）
+
+    public func listImages() async throws(RuntimeError) -> ImageListSnapshot {
+        let descriptions: [ImageDescription]
+        do {
+            descriptions = try await XPCTimeout.race(after: timeout) {
+                try await upstream.listImages()
+            }
+        } catch {
+            throw await errors.map(error, containerID: nil)
+        }
+
+        let infra = await resolveInfraFilter()
+
+        let images: [ImageSummary]
+        do {
+            images = try descriptions
+                .filter { !infra.refs.contains($0.reference) }
+                .map(ImageMapper.map)
+        } catch {
+            // 映射失败 → 整个列表失败（Day 6 ④），不静默丢镜像。
+            throw RuntimeError.operationFailed(reason: "镜像映射失败：\(error)")
+        }
+
+        return ImageListSnapshot(images: images, isInfraFilterAuthoritative: infra.isAuthoritative)
+    }
+
+    /// 删除前**重新**确认 infra 过滤（★R3）：UI 禁用只是 UX——旧快照 + config 变更的
+    /// 窗口里，这里才是防线。非权威 → 拒绝（fail-closed）；命中 infra → 拒绝。
+    public func deleteImage(reference: ImageRef) async throws(RuntimeError) {
+        let infra = await resolveInfraFilter()
+
+        guard infra.isAuthoritative else {
+            throw RuntimeError.operationFailed(
+                reason: "cannot confirm which images the runtime itself depends on; image deletion is disabled"
+            )
+        }
+        guard !infra.refs.contains(reference.rawValue) else {
+            throw RuntimeError.operationFailed(
+                reason: "'\(reference.rawValue)' is a system image required by the runtime and cannot be deleted"
+            )
+        }
+
+        do {
+            try await XPCTimeout.race(after: timeout) {
+                try await upstream.deleteImage(reference: reference.rawValue)
+            }
+        } catch {
+            throw await errors.map(error, containerID: nil)
+        }
+    }
+
+    /// config 真实加载成功 → (真实 refs, 权威)；失败（含超时）→ (stock 默认 refs, **非权威**)。
+    /// 非权威时展示照常降级过滤，删除会被 `deleteImage` 的 guard 拒掉（D-C fail-closed）。
+    private func resolveInfraFilter() async -> (refs: Set<String>, isAuthoritative: Bool) {
+        do {
+            let refs = try await XPCTimeout.race(after: timeout) {
+                try await upstream.loadedInfraImageReferences()
+            }
+            return (refs, true)
+        } catch {
+            return (upstream.stockInfraImageReferences(), false)
+        }
+    }
+
+    // MARK: -
+
+    private func fetch(_ id: ContainerID) async throws(RuntimeError) -> ContainerSnapshot {
+        do {
+            return try await XPCTimeout.race(after: timeout) {
+                try await upstream.get(id: id.rawValue)
+            }
+        } catch {
+            throw await errors.map(error, containerID: id)
+        }
+    }
+}

@@ -1,0 +1,124 @@
+[
+  {
+    "configuration": {
+      "capAdd": [],
+      "capDrop": [],
+      "creationDate": 805686610.712996,
+      "dns": {
+        "nameservers": [],
+        "options": [],
+        "searchDomains": []
+      },
+      "id": "open-connector",
+      "image": {
+        "descriptor": {
+          "digest": "sha256:ccff714537b5f444a21cef42296379faec131c18bd2704cb6d5602cccd9c5f4a",
+          "mediaType": "application/vnd.docker.distribution.manifest.list.v2+json",
+          "size": 685
+        },
+        "reference": "ghcr.io/oomol-lab/open-connector:latest"
+      },
+      "initProcess": {
+        "arguments": [
+          "node",
+          "src/server/index.ts"
+        ],
+        "environment": [
+          "NODE_ENV=FAKE_AAAAA",
+          "OOMOL_CONNECT_RUNTIME_TOKEN=FAKE_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "HOST=FAKE_AA",
+          "PATH=FAKE_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "OOMOL_CONNECT_ENCRYPTION_KEY=FAKE_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "NODE_VERSION=FAKE_AA",
+          "PORT=fake",
+          "OOMOL_CONNECT_ORIGIN=FAKE_AAAAAAAAAAAAAAAA",
+          "OOMOL_CONNECT_DATA_DIR=FAKE_AAAA",
+          "OOMOL_CONNECT_ADMIN_TOKEN=FAKE_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "YARN_VERSION=FAKE_AA",
+          "BASE64_SECRET=YWJjZGVmZ2hpamtsbW5vcA==",
+          "MALFORMED_NO_EQUALS"
+        ],
+        "executable": "docker-entrypoint.sh",
+        "rlimits": [],
+        "supplementalGroups": [],
+        "terminal": false,
+        "user": {
+          "id": {
+            "gid": 0,
+            "uid": 0
+          }
+        },
+        "workingDirectory": "/app"
+      },
+      "labels": {},
+      "mounts": [
+        {
+          "destination": "/app/data",
+          "options": [],
+          "source": "/Users/someone/Library/Application Support/com.apple.container/volumes/open_connector_data/volume.img",
+          "type": {
+            "volume": {
+              "cache": {
+                "on": {}
+              },
+              "format": "ext4",
+              "name": "open_connector_data",
+              "sync": {
+                "fsync": {}
+              }
+            }
+          }
+        }
+      ],
+      "networks": [
+        {
+          "network": "default",
+          "options": {
+            "hostname": "open-connector",
+            "mtu": 1280
+          }
+        }
+      ],
+      "platform": {
+        "architecture": "arm64",
+        "os": "linux"
+      },
+      "publishedPorts": [
+        {
+          "containerPort": 3000,
+          "count": 1,
+          "hostAddress": "0.0.0.0",
+          "hostPort": 3000,
+          "proto": "tcp"
+        }
+      ],
+      "publishedSockets": [],
+      "readOnly": false,
+      "resources": {
+        "cpuOverhead": 1,
+        "cpus": 4,
+        "memoryInBytes": 1073741824
+      },
+      "rosetta": false,
+      "runtimeHandler": "container-runtime-linux",
+      "ssh": false,
+      "sysctls": {},
+      "useInit": false,
+      "virtualization": false
+    },
+    "networks": [
+      {
+        "hostname": "open-connector",
+        "ipv4Address": "192.168.64.2/24",
+        "ipv4Gateway": "192.168.64.1",
+        "ipv6Address": "fd23:6670:7e61:5bc7:f811:bdff:fe12:a486/64",
+        "macAddress": "fa:11:bd:12:a4:86",
+        "mtu": 1280,
+        "network": "default",
+        "variant": "reserved"
+      }
+    ],
+    "startedDate": 805720013.521458,
+    "status": "running"
+  }
+]
