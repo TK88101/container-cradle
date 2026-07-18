@@ -58,11 +58,11 @@ struct TypedConfirmationSheet: View {
                 .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
             }
 
-            Text("这个操作不可撤销。输入 \(Text(expectedName).font(.system(.body, design: .monospaced)).bold()) 确认。")
+            Text("This action cannot be undone. Type \(Text(expectedName).font(.system(.body, design: .monospaced)).bold()) to confirm.")
                 .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)
 
-            TextField("在此输入名字", text: $typed)
+            TextField("Type the name here", text: $typed)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(.body, design: .monospaced))
                 .autocorrectionDisabled()
@@ -70,7 +70,7 @@ struct TypedConfirmationSheet: View {
             HStack {
                 Spacer()
 
-                Button("取消", action: onCancel)
+                Button("Cancel", action: onCancel)
                     .keyboardShortcut(.cancelAction)
 
                 Button(destructiveLabel, role: .destructive) { onConfirm(typed) }
@@ -85,10 +85,10 @@ struct TypedConfirmationSheet: View {
 
 #Preview {
     TypedConfirmationSheet(
-        title: "删除 Volume",
+        title: "Delete Volume",
         expectedName: "openconnector-data",
-        destructiveLabel: "删除",
-        details: ["Volume: openconnector-data", "Used: 70.1 MB", "数据不可恢复。"],
+        destructiveLabel: "Delete",
+        details: ["Volume: openconnector-data", "Used: 70.1 MB", "Data cannot be recovered."],
         onConfirm: { _ in },
         onCancel: {}
     )

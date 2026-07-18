@@ -112,7 +112,7 @@ public enum XPCTimeout {
                         current = .settled
                         return true
                     case .waiting, .settled:
-                        preconditionFailure("continuation 被装了两次——不可能，除非 race 被重入")
+                        preconditionFailure("continuation resumed twice — impossible unless the race was reentered")
                     }
                 }
 

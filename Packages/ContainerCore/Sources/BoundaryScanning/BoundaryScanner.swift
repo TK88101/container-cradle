@@ -148,7 +148,7 @@ public enum BoundaryScanner {
         return source.numberedLines.flatMap { number, line -> [Violation] in
             guard !isComment(line) else { return [] }
             return line.matches(of: pattern).map { _ in
-                Violation(line: number, text: line, detail: "引用了 \(identifier)")
+                Violation(line: number, text: line, detail: "references \(identifier)")
             }
         }
     }
@@ -177,7 +177,7 @@ public enum BoundaryScanner {
 
         return source.numberedLines.flatMap { number, line in
             line.matches(of: call).map { _ in
-                Violation(line: number, text: line, detail: "明文出口")
+                Violation(line: number, text: line, detail: "plaintext escape")
             }
         }
     }
@@ -211,7 +211,7 @@ public enum BoundaryScanner {
         return source.numberedLines.compactMap { number, line in
             guard !isComment(line) else { return nil }
             guard regexes.contains(where: { line.firstMatch(of: $0) != nil }) else { return nil }
-            return Violation(line: number, text: line, detail: "不可信文本以 .public 记入日志")
+            return Violation(line: number, text: line, detail: "untrusted text logged as .public")
         }
     }
 

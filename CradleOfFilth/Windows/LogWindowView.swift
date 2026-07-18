@@ -62,7 +62,7 @@ struct LogWindowView: View {
 
     private var toolbar: some View {
         HStack(spacing: 10) {
-            TextField("搜索", text: $store.searchQuery)
+            TextField("Search", text: $store.searchQuery)
                 .textFieldStyle(.roundedBorder)
                 .frame(maxWidth: 220)
 
@@ -72,28 +72,30 @@ struct LogWindowView: View {
                 Image(systemName: store.isPaused ? "play.fill" : "pause.fill")
             }
             .toggleStyle(.button)
-            .help(store.isPaused ? "恢复自动滚动" : "暂停自动滚动（日志仍在后台跟随）")
+            .help(store.isPaused
+                ? String(localized: "Resume auto-scroll")
+                : String(localized: "Pause auto-scroll (logs keep following in the background)"))
 
             Button {
                 copyAll()
             } label: {
                 Image(systemName: "doc.on.doc")
             }
-            .help("复制全部（已脱敏）")
+            .help("Copy all (redacted)")
 
             Button {
                 store.clear()
             } label: {
                 Image(systemName: "trash")
             }
-            .help("清屏")
+            .help("Clear")
 
             Button {
                 store.open()
             } label: {
                 Image(systemName: "arrow.clockwise")
             }
-            .help("重新打开")
+            .help("Reopen")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -108,19 +110,20 @@ struct LogWindowView: View {
         case .unresolvedRedaction:
             bannerWithDivider(
                 systemImage: "lock.trianglebadge.exclamationmark",
-                text: "无法确认脱敏范围，日志暂不显示 · 重试"
+                text: String(localized: "Cannot confirm the redaction scope; logs are hidden for now · Retry")
             )
 
         case .generationStale:
             bannerWithDivider(
                 systemImage: "arrow.triangle.2.circlepath",
-                text: "运行时已换代，日志流可能已过期 · 重新打开"
+                text: String(localized: "The runtime changed generation; the log stream may be stale · Reopen")
             )
 
         case .streamEnded(let reason):
             bannerWithDivider(
                 systemImage: "stop.circle",
-                text: reason.map { "日志流已结束（\($0)） · 重新打开" } ?? "日志流已结束 · 重新打开"
+                text: reason.map { String(localized: "Log stream ended (\($0)) · Reopen") }
+                    ?? String(localized: "Log stream ended · Reopen")
             )
         }
     }
@@ -137,7 +140,7 @@ struct LogWindowView: View {
 
                 Spacer(minLength: 0)
 
-                Button("重试") { store.open() }
+                Button("Retry") { store.open() }
                     .buttonStyle(.borderless)
             }
             .padding(.horizontal, 12)

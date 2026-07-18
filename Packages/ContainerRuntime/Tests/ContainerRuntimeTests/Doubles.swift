@@ -92,13 +92,23 @@ actor FakeUpstreamClient: UpstreamClient {
             await withUnsafeContinuation { (_: UnsafeContinuation<Void, Never>) in }
         }
 
+        // 模拟优雅停机的耗时（SIGTERM 宽限期）。响应取消没关系——这个注入
+        // 测的是「慢但正常的 stop 不该被超时误杀」，不是超时能力本身。
+        if let stopDelay {
+            try? await Task.sleep(for: stopDelay)
+        }
+
         if let failStop { throw failStop }
     }
 
     private var hangStop = false
+    private var stopDelay: Duration?
 
     /// 让 `stop` 永远不回话。用来钉死「回滚也必须套超时」（codex review 的 P1）。
     func setHangStop(_ hang: Bool) { hangStop = hang }
+
+    /// 让 `stop` 延迟 `delay` 后才成功（模拟容器吃满 SIGTERM 优雅期才退出）。
+    func setStopDelay(_ delay: Duration?) { stopDelay = delay }
 
     // MARK: - logs / stats（Day 9 M4）
 

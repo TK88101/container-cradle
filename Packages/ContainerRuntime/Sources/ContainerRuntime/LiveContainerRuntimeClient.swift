@@ -18,6 +18,17 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
     private let errors: RuntimeErrorMapper
     private let timeout: Duration
 
+    /// stop 专用超时。**必须显著大于上游的 SIGTERM 优雅期**（`ContainerStopOptions
+    /// .default.timeoutInSeconds == 5`，已核实源码）：stop 的语义就包含「最多等 5 秒
+    /// 让容器优雅退出」，把它套在 5s 的全局 XPC 超时里，不吃 SIGTERM 的容器必然假超时
+    /// ——CLI 里停成功，UI 报「停止失败」（Day 13 真机实测）。
+    /// 「两个参数各自合理，凑在一起是灾难」（CLAUDE.md 坑清单）的又一例。
+    private let stopTimeout: Duration
+
+    /// 5s 优雅期 + SIGKILL + teardown 的余量。守它的测试：
+    /// `defaultStopTimeoutCoversUpstreamGracePeriod`。
+    public static let defaultStopTimeout: Duration = .seconds(15)
+
     /// usage enrichment 的**全局预算**（★R3/★R4/★R5，见 `VolumeUsageCollector`）。
     /// 与 per-call `timeout` 是两个尺度：后者钉单卷，前者钉整场。
     private let usageBudget: Duration
@@ -26,13 +37,15 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
     ///   而不是去猜 XPC 错误码的意思。
     public init(
         prober: any RuntimeProber = ApiserverProber(),
-        timeout: Duration = .seconds(5)
+        timeout: Duration = .seconds(5),
+        stopTimeout: Duration = Self.defaultStopTimeout
     ) {
         self.init(
             upstream: LiveUpstreamClient(),
             paths: FileSystemPathChecker(),
             prober: prober,
-            timeout: timeout
+            timeout: timeout,
+            stopTimeout: stopTimeout
         )
     }
 
@@ -42,12 +55,14 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
         paths: any PathChecker,
         prober: any RuntimeProber,
         timeout: Duration = .seconds(5),
+        stopTimeout: Duration = Self.defaultStopTimeout,
         usageBudget: Duration = .seconds(8)
     ) {
         self.upstream = upstream
         self.paths = paths
         self.errors = RuntimeErrorMapper(prober: prober)
         self.timeout = timeout
+        self.stopTimeout = stopTimeout
         self.usageBudget = usageBudget
     }
 
@@ -67,7 +82,7 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
             return try snapshots.map(SnapshotMapper.map)
         } catch {
             // 映射失败 → **整个列表失败**，不静默丢掉那个容器（理由见 SnapshotMapper）。
-            throw RuntimeError.operationFailed(reason: "容器映射失败：\(error)")
+            throw RuntimeError.operationFailed(reason: "Container mapping failed: \(error)")
         }
     }
 
@@ -115,7 +130,7 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
             //
             // 「每个上游调用都套 XPCTimeout」这句话写在本文件开头，却漏了这一句。
             // 注释拦不住漏写，测试才行（`rollbackDoesNotHangWhenStopHangs`）。
-            try? await XPCTimeout.race(after: timeout) {
+            try? await XPCTimeout.race(after: stopTimeout) {
                 try await upstream.stop(id: id.rawValue)
             }
 
@@ -132,7 +147,7 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
         guard snapshot.status != .stopped else { return }
 
         do {
-            try await XPCTimeout.race(after: timeout) {
+            try await XPCTimeout.race(after: stopTimeout) {
                 try await upstream.stop(id: id.rawValue)
             }
         } catch {
@@ -163,7 +178,7 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
         guard handles.count >= 2 else {
             for handle in handles { try? handle.close() }
             throw RuntimeError.operationFailed(
-                reason: "上游 logs(id:) 返回的 FileHandle 数量异常：\(handles.count)"
+                reason: "Upstream logs(id:) returned an unexpected number of FileHandles: \(handles.count)"
             )
         }
 
@@ -314,7 +329,7 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
                 .map(ImageMapper.map)
         } catch {
             // 映射失败 → 整个列表失败（Day 6 ④），不静默丢镜像。
-            throw RuntimeError.operationFailed(reason: "镜像映射失败：\(error)")
+            throw RuntimeError.operationFailed(reason: "Image mapping failed: \(error)")
         }
 
         return ImageListSnapshot(images: images, isInfraFilterAuthoritative: infra.isAuthoritative)

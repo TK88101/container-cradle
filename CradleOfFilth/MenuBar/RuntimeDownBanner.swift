@@ -44,12 +44,14 @@ struct RuntimeDownBanner: View {
         }
     }
 
+    /// `Text(title)` 是 verbatim（title 是 `String` 变量，不是字面 key）——所以标题
+    /// 必须在这里就地本地化，不能指望 SwiftUI 的 LocalizedStringKey 自动查表（codex #6）。
     private var title: String {
         switch error {
-        case .runtimeUnavailable: "容器运行时没在运行"
-        case .containerNotFound: "容器不存在"
-        case .mountSourceUnavailable: "挂载源还没就绪"
-        case .operationFailed: "操作失败"
+        case .runtimeUnavailable: String(localized: "The container runtime is not running")
+        case .containerNotFound: String(localized: "Container not found")
+        case .mountSourceUnavailable: String(localized: "Mount source not ready yet")
+        case .operationFailed: String(localized: "Operation failed")
         }
     }
 
@@ -57,16 +59,19 @@ struct RuntimeDownBanner: View {
     ///
     /// `.mountSourceUnavailable` 尤其如此：它的正解是「去把那块盘插上」，
     /// 而一句笼统的「启动失败」只会把人赶去翻日志——翻到的还是同一句话。
+    ///
+    /// `.operationFailed(reason)` 的 reason 是 runtime 层英文诊断串，**原样透传不翻译**
+    /// （Day 14 §1：技术详情保持可搜索）。
     private var detail: String {
         switch error {
         case .runtimeUnavailable:
             hasStaleData
-                ? "下面是运行时停止前的状态，不是当前状态。"
-                : "启动 apple/container 运行时后，这里会显示容器。"
+                ? String(localized: "Below is the state before the runtime stopped, not the current state.")
+                : String(localized: "Containers will appear here after you start the apple/container runtime.")
         case .containerNotFound(let id):
-            "找不到容器 \(id.rawValue)。它可能已被删除。"
+            String(localized: "Container \(id.rawValue) not found. It may have been deleted.")
         case .mountSourceUnavailable(let path):
-            "宿主上的 \(path) 还不存在。外置盘或网络卷可能还没挂上——挂上之后会自动重试。"
+            String(localized: "\(path) does not exist on the host yet. An external disk or network volume may not be attached — it will retry automatically once mounted.")
         case .operationFailed(let reason):
             reason
         }

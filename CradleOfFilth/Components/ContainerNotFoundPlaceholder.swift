@@ -12,9 +12,9 @@ struct ContainerNotFoundPlaceholder: View {
 
     var body: some View {
         ContentUnavailableView(
-            "找不到这个容器",
+            "Container not found",
             systemImage: systemImage,
-            description: Text("列表可能已刷新，或运行时不在了。")
+            description: Text("The list may have refreshed, or the runtime is gone.")
         )
         .frame(minWidth: minWidth, minHeight: minHeight)
     }

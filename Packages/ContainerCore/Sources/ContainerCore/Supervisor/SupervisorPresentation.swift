@@ -10,33 +10,42 @@ import Foundation
 ///
 /// 判断放进 view = 零测试（app target 没有测试 target）。这个仓库已经因此漏过一个
 /// 「旧刷新覆盖新刷新」的 bug 了。
+///
+/// Day 14 起 key = 英文源串（en = development language），zh-Hans / zh-Hant / ja
+/// 翻译在 core 目录（lproj）；计数类条目的 en 复数在 `en.lproj/Localizable.stringsdict`。
 public enum SupervisorPresentation {
 
     /// 状态行。
-    public static func headline(for state: SupervisorState) -> String {
+    public static func headline(for state: SupervisorState, locale: Locale = .current) -> String {
         switch state {
         case .unknown:
-            "正在检查运行时…"
+            String(coreLocalized: "Checking runtime…", locale: locale)
 
         case .runtimeDown:
-            "运行时未运行"
+            String(coreLocalized: "Runtime is not running", locale: locale)
 
         case .runtimeUp(_, let baseline):
-            baseline ? "运行时正常（冷启动，未代劳）" : "运行时正常 · 受管容器已拉起"
+            baseline
+                ? String(coreLocalized: "Runtime OK (cold start, hands off)", locale: locale)
+                : String(coreLocalized: "Runtime OK · managed containers started", locale: locale)
 
         case .reconciling:
-            "正在拉起受管容器…"
+            String(coreLocalized: "Starting managed containers…", locale: locale)
 
         case .cooldown(_, _, let failures):
-            "拉起失败，等待重试（已失败 \(failures.attempts) 次）"
+            String(
+                coreLocalized: "Start failed, waiting to retry (failed \(failures.attempts) times)",
+                locale: locale
+            )
 
         case .circuitOpen:
-            "已熔断 · 自动重试已停止"
+            String(coreLocalized: "Circuit open · automatic retries stopped", locale: locale)
         }
     }
 
     /// 菜单栏图标。**熔断必须看得出来**——熔断意味着 supervisor 从此不干活了，
     /// 而它不干活的样子和一切正常一模一样（`SupervisorNotice.circuitOpened` 的文档）。
+    /// SF Symbol 名是标识符不是文案，**不本地化**。
     public static func symbol(for state: SupervisorState) -> String {
         switch state {
         case .unknown, .runtimeUp:
@@ -65,22 +74,40 @@ public enum SupervisorPresentation {
     }
 
     /// 最近一条通知的人话。`nil` = 没什么好说的。
-    public static func detail(for notice: SupervisorNotice?) -> String? {
+    public static func detail(for notice: SupervisorNotice?, locale: Locale = .current) -> String? {
         switch notice {
         case nil, .reconcileSucceeded:
             nil
 
         case .reconcileFailed(_, let kind, let attempt, _):
-            "\(reason(for: kind)) · 已重试 \(attempt) 次"
+            String(
+                coreLocalized: "\(reason(for: kind, locale: locale)) · retried \(attempt) times",
+                locale: locale
+            )
 
         case .circuitOpened(_, let failures):
-            "连续失败 \(failures) 次，已停止自动重试。修好之后请手动「立即启动受管容器」。"
+            String(
+                coreLocalized: """
+                Failed \(failures) times in a row; automatic retries stopped. \
+                Once fixed, choose "Start managed containers now" from the menu.
+                """,
+                locale: locale
+            )
 
         case .reconcileAbandoned:
-            "白名单里有容器不存在（ID 拼错了？或者容器被删了）。请检查白名单。"
+            String(
+                coreLocalized: """
+                A whitelisted container does not exist (typo in the ID? Or was it deleted?). \
+                Check the whitelist.
+                """,
+                locale: locale
+            )
 
         case .forcedReconcileUnavailable:
-            "现在没有运行时可拉——先把 apple/container 的运行时启动起来。"
+            String(
+                coreLocalized: "No runtime to start containers on — start the apple/container runtime first.",
+                locale: locale
+            )
         }
     }
 
@@ -105,16 +132,19 @@ public enum SupervisorPresentation {
 
     /// 失败三分类 → 用户该去做的事。**这三句话不能合并**：
     /// 它们要用户做的事完全不同（插硬盘 / 查容器为什么崩 / 改白名单）。
-    private static func reason(for kind: FailureKind) -> String {
+    static func reason(for kind: FailureKind, locale: Locale = .current) -> String {
         switch kind {
         case .environmentNotReady:
-            "等待挂载源就绪（外置盘 / 网络卷还没挂上？）"
+            String(
+                coreLocalized: "Waiting for mount source (external disk / network volume not attached yet?)",
+                locale: locale
+            )
 
         case .transient:
-            "启动失败（容器起来就崩？）"
+            String(coreLocalized: "Start failed (container crashes right after boot?)", locale: locale)
 
         case .permanent:
-            "容器不存在"
+            String(coreLocalized: "Container not found", locale: locale)
         }
     }
 }

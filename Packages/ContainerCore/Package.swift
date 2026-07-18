@@ -15,6 +15,9 @@ import PackageDescription
 // 「零上游依赖」不靠自觉：D1BoundaryTests 会扫源码，import 越界就红灯。
 let package = Package(
     name: "ContainerCore",
+    // Day 14 本地化：en = development language；core 展示串走
+    // `String(localized:bundle:.module)`（DAY13 裁决 A 案）。
+    defaultLocalization: "en",
     platforms: [.macOS(.v15)],
     products: [
         .library(name: "ContainerCore", targets: ["ContainerCore"]),
@@ -29,7 +32,15 @@ let package = Package(
         .library(name: "BoundaryScanning", targets: ["BoundaryScanning"]),
     ],
     targets: [
-        .target(name: "ContainerCore"),
+        // 本地化接线的承重墙是 defaultLocalization，不是这条 resources 声明——
+        // 突变实测（2026-07-18）：删 resources 声明，.lproj 仍被 SwiftPM 自动
+        // 当本地化资源处理，测试照绿；删 defaultLocalization 才是 manifest 硬错。
+        // 显式声明保留是为了走文档化行为，不押注自动侦测在未来工具链里不变。
+        // key 回显类静默失败由 LocalizationResourceTests 守（zh-Hans exact 断言）。
+        .target(
+            name: "ContainerCore",
+            resources: [.process("Resources")]
+        ),
 
         // 零依赖、纯函数（源码字符串 → 违规行）。故它自己可以被测（该红时会红）。
         .target(name: "BoundaryScanning"),

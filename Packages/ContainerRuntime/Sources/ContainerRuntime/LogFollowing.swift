@@ -27,7 +27,7 @@ struct LogLineAssembler {
     private var nextSequence = 0
 
     init(maxLineBytes: Int = LogLineAssembler.defaultMaxLineBytes) {
-        precondition(maxLineBytes > 0, "maxLineBytes 必须为正——非法配置在这里夹掉")
+        precondition(maxLineBytes > 0, "maxLineBytes must be positive — invalid config is clamped here")
         self.maxLineBytes = maxLineBytes
     }
 
@@ -124,7 +124,7 @@ struct LogFollowStep {
                 let trailing = assembler.flush().map { [$0] } ?? []
                 return .finished(
                     trailing: trailing,
-                    error: .operationFailed(reason: "日志流已结束（seek 失败：\(error)）")
+                    error: .operationFailed(reason: "Log stream ended (seek failed: \(error))")
                 )
             }
         }

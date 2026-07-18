@@ -1,0 +1,56 @@
+/* ContainerCore ja（Day 14 草稿——substantial 句已过 /humanmade）。key = 英文源串。 */
+
+/* ContainerStatePresentation */
+"Running" = "実行中";
+"Stopped" = "停止";
+"Stopping" = "停止処理中";
+"Unknown" = "不明";
+
+/* SupervisorPresentation.headline */
+"Checking runtime…" = "ランタイムを確認中…";
+"Runtime is not running" = "ランタイムが実行されていません";
+"Runtime OK (cold start, hands off)" = "ランタイム正常（コールドスタート・自動起動なし）";
+"Runtime OK · managed containers started" = "ランタイム正常 · 管理対象コンテナを起動しました";
+"Starting managed containers…" = "管理対象コンテナを起動中…";
+"Start failed, waiting to retry (failed %lld times)" = "起動に失敗、再試行を待機中（%lld 回失敗）";
+"Circuit open · automatic retries stopped" = "遮断中 · 自動再試行を停止しました";
+
+/* SupervisorPresentation.detail / reason */
+"%@ · retried %lld times" = "%1$@ · %2$lld 回再試行";
+"Failed %lld times in a row; automatic retries stopped. Once fixed, choose \"Start managed containers now\" from the menu." = "%lld 回連続で失敗したため、自動再試行を停止しました。復旧したら、メニューの「管理対象コンテナを今すぐ起動」を選んでください。";
+"A whitelisted container does not exist (typo in the ID? Or was it deleted?). Check the whitelist." = "ホワイトリストに存在しないコンテナがあります（ID の入力ミス、または削除された可能性）。内容を確認してください。";
+"No runtime to start containers on — start the apple/container runtime first." = "起動先のランタイムがありません。先に apple/container のランタイムを起動してください。";
+"Waiting for mount source (external disk / network volume not attached yet?)" = "マウント元を待機中（外付けディスクやネットワークボリュームが未接続では？）";
+"Start failed (container crashes right after boot?)" = "起動に失敗（コンテナが起動直後にクラッシュ？）";
+"Container not found" = "コンテナが見つかりません";
+
+/* SystemNotificationContent */
+"Automatic restart stopped" = "自動再起動を停止しました";
+"Managed containers failed %lld times in a row; the circuit is now open. Once fixed, choose \"Start managed containers now\" from the menu." = "管理対象コンテナが %lld 回連続で失敗し、遮断状態になりました。復旧したら、メニューの「管理対象コンテナを今すぐ起動」を選んでください。";
+"A whitelisted container is missing" = "ホワイトリストのコンテナが見つかりません";
+"A managed container cannot start (typo in the ID? Or was it deleted?). Check the whitelist." = "管理対象コンテナを起動できません（ID の入力ミス、または削除された可能性）。ホワイトリストを確認してください。";
+
+/* ContainerActionPresentation */
+"Stop failed: %@" = "停止に失敗：%@";
+"Start failed: %@" = "起動に失敗：%@";
+"Restart failed (stop phase failed; the container is still running): %@" = "再起動に失敗（停止に失敗し、コンテナは実行中のまま）：%@";
+"Stopped, but start failed: %@" = "停止しましたが、起動に失敗：%@";
+"The container runtime is not running" = "コンテナランタイムが実行されていません";
+"Container %@ not found. It may have been deleted." = "コンテナ %@ が見つかりません。削除された可能性があります。";
+"%@ does not exist on the host yet. An external disk or network volume may not be attached." = "ホスト上に %@ がまだ存在しません。外付けディスクやネットワークボリュームが未接続の可能性があります。";
+
+/* VolumePresentation 四象限 */
+"size unknown" = "サイズ不明";
+"%@ used / max unknown" = "使用中 %1$@ / 上限不明";
+"used unknown / %@ max" = "使用中不明 / 上限 %1$@";
+"%@ used / %@ max" = "使用中 %1$@ / 上限 %2$@";
+
+/* VolumePresentation.deletionImpact */
+"Volume: %@" = "ボリューム：%@";
+"Used: %@" = "使用中：%@";
+"Used: unknown — size fetch failed" = "使用中：不明——サイズの取得に失敗";
+"Source: %@" = "ソース：%@";
+"Created: %@" = "作成：%@";
+"This volume's data cannot be recovered after deletion." = "削除後、このボリュームのデータは復元できません。";
+
+"%lld volumes" = "%lld 個のボリューム";

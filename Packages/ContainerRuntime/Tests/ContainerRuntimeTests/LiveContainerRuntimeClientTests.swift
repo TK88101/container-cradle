@@ -16,13 +16,15 @@ struct LiveContainerRuntimeClientTests {
         upstream: FakeUpstreamClient,
         existingPaths: Set<String> = [],
         prober: FakeRuntimeProber = .up,
-        timeout: Duration = .seconds(5)
+        timeout: Duration = .seconds(5),
+        stopTimeout: Duration = LiveContainerRuntimeClient.defaultStopTimeout
     ) -> LiveContainerRuntimeClient {
         LiveContainerRuntimeClient(
             upstream: upstream,
             paths: FakePathChecker(existing: existingPaths),
             prober: prober,
-            timeout: timeout
+            timeout: timeout,
+            stopTimeout: stopTimeout
         )
     }
 
@@ -223,7 +225,8 @@ struct LiveContainerRuntimeClientTests {
         let subject = client(
             upstream: upstream,
             existingPaths: ["/Volumes/ExternalDisk/container-data"],
-            timeout: .milliseconds(20)
+            timeout: .milliseconds(20),
+            stopTimeout: .milliseconds(20)
         )
         let target = try id("needs-external-disk")
 
@@ -233,6 +236,48 @@ struct LiveContainerRuntimeClientTests {
         }
 
         #expect(await upstream.calls.contains(.stop("needs-external-disk")), "回滚该被尝试过")
+    }
+
+    // MARK: - stop 的独立超时（Day 13 真机抓到的假超时）
+
+    /// ★ 真机事实（Day 13）：上游 stop 自带 5s SIGTERM 优雅期
+    /// （`ContainerStopOptions.default.timeoutInSeconds == 5`，已核实源码），
+    /// 而 XPC 超时同为 5s——「等它优雅退出」被全额记进「对端挂死」的判定，
+    /// 不吃 SIGTERM 的容器必然假超时：CLI 里容器停成功，UI 却报「停止失败：XPC 调用超时」。
+    /// 又是「两个参数各自合理，凑在一起是灾难」（CLAUDE.md 坑清单）。
+    @Test("stop 走独立 stopTimeout：慢于全局 timeout 的正常优雅停机不被误杀")
+    func stopSurvivesGracePeriodLongerThanGlobalTimeout() async throws {
+        let upstream = FakeUpstreamClient(snapshots: try Fixtures.snapshots("snapshots"))
+        await upstream.setStopDelay(.milliseconds(120))
+
+        let subject = client(
+            upstream: upstream,
+            timeout: .milliseconds(20),          // 全局超时远小于停机耗时
+            stopTimeout: .seconds(5)
+        )
+
+        // 不该抛超时——stop 的期限必须是 stopTimeout，不是全局 timeout。
+        try await subject.stop(id: try id("open-connector"))
+    }
+
+    /// 不变式：默认 stopTimeout 必须显著大于上游 5s 优雅期（否则退回假超时）。
+    @Test("默认 stopTimeout 盖过上游 5s 优雅期")
+    func defaultStopTimeoutCoversUpstreamGracePeriod() {
+        #expect(LiveContainerRuntimeClient.defaultStopTimeout >= .seconds(10))
+    }
+
+    /// 换 knob 不能丢超时保护：stop 真挂死仍要在 stopTimeout 后返回（R5）。
+    @Test("stop 挂死 → 在 stopTimeout 后返回，不冻住", .timeLimit(.minutes(1)))
+    func stopStillTimesOutWhenHung() async throws {
+        let upstream = FakeUpstreamClient(snapshots: try Fixtures.snapshots("snapshots"))
+        await upstream.setHangStop(true)
+
+        let subject = client(upstream: upstream, stopTimeout: .milliseconds(20))
+        let target = try id("open-connector")
+
+        await #expect(throws: RuntimeError.self) {
+            try await subject.stop(id: target)
+        }
     }
 
     // MARK: - list

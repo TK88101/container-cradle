@@ -35,22 +35,22 @@ struct ImagesWindowView: View {
         .navigationTitle("Images")
         .task { await store.refresh() }
         .confirmationDialog(
-            "删除镜像？",
+            "Delete image?",
             isPresented: confirmShown,
             presenting: pendingDeletion
         ) { image in
-            Button("删除 \(image.reference.rawValue)", role: .destructive) {
+            Button("Delete \(image.reference.rawValue)", role: .destructive) {
                 pendingDeletion = nil
                 Task { await store.deleteImage(image) }
             }
-            Button("取消", role: .cancel) {
+            Button("Cancel", role: .cancel) {
                 pendingDeletion = nil
             }
         } message: { image in
-            Text("将删除 \(image.reference.rawValue)（\(image.shortDigest)）的本地数据。镜像可以重新 pull。")
+            Text("This will delete the local data for \(image.reference.rawValue) (\(image.shortDigest)). The image can be pulled again.")
         }
-        .alert("删除失败", isPresented: deleteFailedShown) {
-            Button("好", role: .cancel) { store.dismissDeletionFailure() }
+        .alert("Deletion failed", isPresented: deleteFailedShown) {
+            Button("OK", role: .cancel) { store.dismissDeletionFailure() }
         } message: {
             Text(deleteFailedReason)
         }
@@ -60,7 +60,7 @@ struct ImagesWindowView: View {
 
     private var toolbar: some View {
         HStack {
-            Text("\(store.displayedImages.count) 个镜像")
+            Text("\(store.displayedImages.count) images")
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
@@ -72,7 +72,7 @@ struct ImagesWindowView: View {
                 Image(systemName: "arrow.clockwise")
             }
             .buttonStyle(.borderless)
-            .help("刷新列表")
+            .help("Refresh")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -81,7 +81,7 @@ struct ImagesWindowView: View {
     @ViewBuilder
     private var refreshFailureBanner: some View {
         if case .failed = store.state {
-            Text("刷新失败——显示的是最后一次成功的列表")
+            Text("Refresh failed — showing the last successful list")
                 .font(.caption)
                 .foregroundStyle(.orange)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -94,7 +94,7 @@ struct ImagesWindowView: View {
     @ViewBuilder
     private var deletionDisabledBanner: some View {
         if !store.deletionEnabled {
-            Text("无法确认系统镜像过滤（config 未能加载），删除已停用")
+            Text("Cannot confirm the system-image filter (config failed to load); deletion is disabled")
                 .font(.caption)
                 .foregroundStyle(.orange)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -123,7 +123,7 @@ struct ImagesWindowView: View {
         if case .loading = store.state {
             ProgressView()
         } else {
-            Text("没有镜像")
+            Text("No images")
                 .foregroundStyle(.secondary)
         }
         Spacer()
@@ -155,7 +155,7 @@ struct ImagesWindowView: View {
                 }
                 .buttonStyle(.borderless)
                 .disabled(!store.deletionEnabled || deletionInFlight)
-                .help("删除镜像的本地数据（可重新 pull）")
+                .help("Delete the image's local data (can be pulled again)")
             }
         }
         .padding(.vertical, 2)

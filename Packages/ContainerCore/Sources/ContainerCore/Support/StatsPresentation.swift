@@ -9,31 +9,34 @@ import Foundation
 /// `nil` 是「还没测出来」（首样本，或 `StatsCollector.reset()` 之后），`0` 是「量到了，
 /// 真的空转」。两者混为一谈会让用户把「还没测出来」读成「容器不干活」——
 /// 这条区分正是 `guard let` 挡在格式化之前的原因，不能删。
+///
+/// ## locale 参数（Day 14，codex 裁决 #8）
+///
+/// 测试必须能固定 locale，否则断言随机器区域设置漂。UI 调用方走默认 `.current`。
+/// 字节格式化用 `ByteCountFormatStyle`（值类型、`Sendable`、支持 locale 注入）——
+/// `ByteCountFormatter` 没有 locale 注入口。与 legacy 的输出差异已由
+/// 迁移对照矩阵测试显式接受（仅 kB 档大小写，MB/GB 档一致）。
 public enum StatsPresentation {
 
-    public static func cpuPercentText(_ percent: Double?) -> String {
+    public static func cpuPercentText(_ percent: Double?, locale: Locale = .current) -> String {
         guard let percent else { return "--" }
-        return String(format: "%.1f%%", percent)
+        return String(format: "%.1f%%", locale: locale, percent)
     }
 
-    public static func memoryText(usedBytes: UInt64?, limitBytes: UInt64?) -> String {
+    public static func memoryText(
+        usedBytes: UInt64?,
+        limitBytes: UInt64?,
+        locale: Locale = .current
+    ) -> String {
         guard let usedBytes else { return "--" }
-        let formatter = makeByteFormatter()
-        let usedText = formatter.string(fromByteCount: Int64(clamping: usedBytes))
+        let usedText = memoryByteText(usedBytes, locale: locale)
 
         guard let limitBytes else { return usedText }
-        let limitText = formatter.string(fromByteCount: Int64(clamping: limitBytes))
-        return "\(usedText) / \(limitText)"
+        return "\(usedText) / \(memoryByteText(limitBytes, locale: locale))"
     }
 
-    /// **不缓存成 `static let`**：`ByteCountFormatter` 不是 `Sendable`（Foundation 的 `NSFormatter`
-    /// 系列都不是），一个跨调用共享的静态实例在 Swift 6 严格并发检查下过不了编译
-    /// （"may have shared mutable state"）。这个类型是无状态的 namespace helper，不挂在任何
-    /// actor 上，调用方可能来自任意隔离域——现建一份的成本（一次格式化，不是热路径）
-    /// 换来的是不必给这个 enum 强行绑一个 actor。
-    private static func makeByteFormatter() -> ByteCountFormatter {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .memory
-        return formatter
+    /// `.memory` 口径：与官方 CLI stats 的内存语义一致。
+    private static func memoryByteText(_ bytes: UInt64, locale: Locale) -> String {
+        Int64(clamping: bytes).formatted(.byteCount(style: .memory).locale(locale))
     }
 }

@@ -78,7 +78,7 @@ struct StatsWindowView: View {
 
     private var memorySection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("内存")
+            Text("Memory")
                 .font(.headline)
 
             Text(memoryText)

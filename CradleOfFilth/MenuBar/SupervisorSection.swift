@@ -34,7 +34,7 @@ struct SupervisorSection: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Button("立即启动受管容器", action: onForceReconcile)
+            Button("Start managed containers now", action: onForceReconcile)
                 .buttonStyle(.borderless)
                 .font(.callout)
         }

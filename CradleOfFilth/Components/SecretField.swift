@@ -41,7 +41,7 @@ struct SecretField: View {
                 .truncationMode(.middle)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            Button(revealed ? "隐藏" : "显示") { revealed.toggle() }
+            Button(revealed ? "Hide" : "Show") { revealed.toggle() }
                 .buttonStyle(.borderless)
                 .font(.caption)
 
@@ -51,7 +51,7 @@ struct SecretField: View {
                 Image(systemName: copied ? "checkmark" : "doc.on.doc")
             }
             .buttonStyle(.borderless)
-            .help("复制（走 concealed 剪贴板，不进普通剪贴板历史）")
+            .help("Copy (via the concealed pasteboard; stays out of regular clipboard history)")
         }
     }
 

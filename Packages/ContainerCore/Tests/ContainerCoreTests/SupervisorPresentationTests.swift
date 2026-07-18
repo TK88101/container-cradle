@@ -74,10 +74,53 @@ struct SupervisorPresentationTests {
                 kind: .environmentNotReady,
                 attempt: 1,
                 retryAt: Date(timeIntervalSince1970: 100)
-            )
+            ),
+            locale: Locale(identifier: "en")
         )
 
-        #expect(text?.contains("挂载") == true)
+        #expect(text?.contains("mount source") == true)
+    }
+
+    /// en 复数（codex #7）：retried 1 time / 2 times——stringsdict 的位置化
+    /// `%2$#@count@` 模式由这两条钉死（detail 是「%@ · retried %lld times」双参组合）。
+    @Test("en 复数：retried 1 time（单数不带 s）")
+    func retriedOnceIsSingular() {
+        let text = SupervisorPresentation.detail(
+            for: .reconcileFailed(
+                generation: g1, kind: .permanent, attempt: 1,
+                retryAt: Date(timeIntervalSince1970: 100)
+            ),
+            locale: Locale(identifier: "en")
+        )
+        #expect(text == "Container not found · retried 1 time")
+    }
+
+    @Test("en 复数：retried 2 times")
+    func retriedTwiceIsPlural() {
+        let text = SupervisorPresentation.detail(
+            for: .reconcileFailed(
+                generation: g1, kind: .permanent, attempt: 2,
+                retryAt: Date(timeIntervalSince1970: 100)
+            ),
+            locale: Locale(identifier: "en")
+        )
+        #expect(text == "Container not found · retried 2 times")
+    }
+
+    /// zh-Hans 目录命中（codex #5 高价值面）：状态行 + 失败 detail 整句 exact。
+    @Test("zh-Hans：状态行与 detail 命中目录，非 key 回显")
+    func zhHansHeadlineAndDetail() {
+        let zhHans = Locale(identifier: "zh-Hans")
+        #expect(SupervisorPresentation.headline(for: .runtimeDown, locale: zhHans) == "运行时未运行")
+
+        let detail = SupervisorPresentation.detail(
+            for: .reconcileFailed(
+                generation: g1, kind: .environmentNotReady, attempt: 2,
+                retryAt: Date(timeIntervalSince1970: 100)
+            ),
+            locale: zhHans
+        )
+        #expect(detail == "等待挂载源就绪（外置盘 / 网络卷还没挂上？） · 已重试 2 次")
     }
 
     /// 成功不该在界面上留一行「上次成功了」的噪音。

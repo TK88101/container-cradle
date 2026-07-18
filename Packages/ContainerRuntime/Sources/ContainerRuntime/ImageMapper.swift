@@ -13,7 +13,7 @@ enum ImageMapper {
 
     struct UnmappableImage: Error, CustomStringConvertible {
         let reference: String
-        var description: String { "无法映射镜像 reference：'\(reference)'" }
+        var description: String { "Cannot map image reference: '\(reference)'" }
     }
 
     static func map(_ description: ImageDescription) throws -> ImageSummary {

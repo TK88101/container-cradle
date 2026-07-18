@@ -1,0 +1,528 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ %@?" : {
+      "comment" : "Confirmation dialog title: <verb> <container id>?",
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%1$@ %2$@？" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%1$@ %2$@？" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%1$@ %2$@？" } }
+      }
+    },
+    "%lld images" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld image" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld images" } }
+            }
+          }
+        },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld 個のイメージ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%lld 个镜像" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%lld 個映像檔" } }
+      }
+    },
+    "%lld volumes" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld volume" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld volumes" } }
+            }
+          }
+        },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld 個のボリューム" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%lld 个 volume" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%lld 個 volume" } }
+      }
+    },
+    "%@ does not exist on the host yet. An external disk or network volume may not be attached — it will retry automatically once mounted." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホスト上に %@ がまだ存在しません。外付けディスクやネットワークボリュームが未マウントの可能性があります。マウントされ次第、自動的に再試行します。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "宿主上的 %@ 还不存在。外置盘或网络卷可能还没挂上——挂上之后会自动重试。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "主機上的 %@ 還不存在。外接磁碟或網路磁碟區可能還沒掛載——掛載之後會自動重試。" } }
+      }
+    },
+    "(no environment variables)" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "（環境変数なし）" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "（没有环境变量）" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "（沒有環境變數）" } }
+      }
+    },
+    "A managed container won’t auto-restart after you stop it manually (unless the container runtime restarts; if the supervisor is currently auto-starting, the container may be restarted right after)." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "管理対象のコンテナは手動で停止しても自動再起動しません（コンテナランタイムが再起動した場合を除く。スーパーバイザーが自動起動中の場合は、直後に再起動されることがあります）。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "受管容器手动停止后不会自动重启（除非容器运行时重启；若 supervisor 正在自动拉起，容器可能随后被重启）。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "受管容器手動停止後不會自動重啟（除非容器執行階段重啟；若 supervisor 正在自動拉起，容器可能隨後被重啟）。" } }
+      }
+    },
+    "A volume with this name was changed externally during confirmation (possibly deleted and recreated). The list has refreshed; please verify and start the deletion again." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "この名前のボリュームは確認中に外部から変更されました（削除して再作成された可能性があります）。リストを更新しました。確認のうえ、削除をやり直してください。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这个名字的卷在确认期间被外部改动过（可能被删除重建）。列表已刷新，请核对后重新发起删除。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這個名字的磁碟區在確認期間被外部改動過（可能被刪除重建）。清單已重新整理，請核對後重新發起刪除。" } }
+      }
+    },
+    "Below is the state before the runtime stopped, not the current state." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "以下はランタイム停止前の状態であり、現在の状態ではありません。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下面是运行时停止前的状态，不是当前状态。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "下面是執行階段停止前的狀態，不是目前狀態。" } }
+      }
+    },
+    "Cancel" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "キャンセル" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "取消" } }
+      }
+    },
+    "Cannot confirm the redaction scope; logs are hidden for now · Retry" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "秘匿範囲を確認できないため、ログを一時的に非表示にしています · 再試行" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法确认脱敏范围，日志暂不显示 · 重试" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法確認去識別化範圍，日誌暫不顯示 · 重試" } }
+      }
+    },
+    "Cannot confirm the system-image filter (config failed to load); deletion is disabled" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "システムイメージのフィルタを確認できません（設定の読み込みに失敗）。削除を無効にしました" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法确认系统镜像过滤（config 未能加载），删除已停用" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法確認系統映像檔過濾（config 未能載入），刪除已停用" } }
+      }
+    },
+    "Clear" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "クリア" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "清屏" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "清除畫面" } }
+      }
+    },
+    "Container %@ not found. It may have been deleted." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コンテナ %@ が見つかりません。削除された可能性があります。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "找不到容器 %@。它可能已被删除。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "找不到容器 %@。它可能已被刪除。" } }
+      }
+    },
+    "Container not found" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コンテナが見つかりません" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "容器不存在" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "容器不存在" } }
+      }
+    },
+    "Containers" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コンテナ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "容器" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "容器" } }
+      }
+    },
+    "Containers will appear here after you start the apple/container runtime." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "apple/container ランタイムを起動すると、ここにコンテナが表示されます。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "启动 apple/container 运行时后，这里会显示容器。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "啟動 apple/container 執行階段後，這裡會顯示容器。" } }
+      }
+    },
+    "Copy (via the concealed pasteboard; stays out of regular clipboard history)" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コピー（concealed ペーストボードを使用。通常のクリップボード履歴には残りません）" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "复制（走 concealed 剪贴板，不进普通剪贴板历史）" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "複製（走 concealed 剪貼簿，不進普通剪貼簿歷史）" } }
+      }
+    },
+    "Copy all (redacted)" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "すべてコピー（秘匿済み）" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "复制全部（已脱敏）" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "複製全部（已去識別化）" } }
+      }
+    },
+    "Created %@" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "作成 %@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "创建于 %@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "建立於 %@" } }
+      }
+    },
+    "Delete" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "削除" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除" } }
+      }
+    },
+    "Delete %@" : {
+      "comment" : "Confirmation button: delete <image reference>",
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ を削除" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除 %@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除 %@" } }
+      }
+    },
+    "Delete image?" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "イメージを削除しますか？" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除镜像？" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除映像檔？" } }
+      }
+    },
+    "Delete Volume" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ボリュームを削除" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除 Volume" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除 Volume" } }
+      }
+    },
+    "Delete the image's local data (can be pulled again)" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "イメージのローカルデータを削除（再度 pull 可能）" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除镜像的本地数据（可重新 pull）" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除映像檔的本機資料（可重新 pull）" } }
+      }
+    },
+    "Delete volume (requires typing the name to confirm; data cannot be recovered)" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ボリュームを削除（名前の入力による確認が必要。データは復元できません）" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除 volume（需要输入名字确认，数据不可恢复）" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除 volume（需要輸入名字確認，資料不可復原）" } }
+      }
+    },
+    "Deletion failed" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "削除に失敗しました" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除失败" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除失敗" } }
+      }
+    },
+    "Details (environment variables masked by default)" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "詳細（環境変数はデフォルトでマスク）" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "详情（环境变量默认打码）" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "詳情（環境變數預設打碼）" } }
+      }
+    },
+    "Environment Variables" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "環境変数" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "环境变量" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "環境變數" } }
+      }
+    },
+    "Failed to save whitelist: %@" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホワイトリストの保存に失敗しました：%@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "白名单保存失败：%@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "白名單儲存失敗：%@" } }
+      }
+    },
+    "Failed to set login item: %@" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ログイン項目の設定に失敗しました：%@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自启设置失败：%@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "自動啟動設定失敗：%@" } }
+      }
+    },
+    "Hide" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "隠す" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "隐藏" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "隱藏" } }
+      }
+    },
+    "Image" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "イメージ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "镜像" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "映像檔" } }
+      }
+    },
+    "Images" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "イメージ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "镜像" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "映像檔" } }
+      }
+    },
+    "Log stream ended (%@) · Reopen" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ログストリームが終了しました（%@） · 再オープン" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日志流已结束（%@） · 重新打开" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "日誌串流已結束（%@） · 重新開啟" } }
+      }
+    },
+    "Log stream ended · Reopen" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ログストリームが終了しました · 再オープン" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日志流已结束 · 重新打开" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "日誌串流已結束 · 重新開啟" } }
+      }
+    },
+    "Manage Images…" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "イメージを管理…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "镜像管理…" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "映像檔管理…" } }
+      }
+    },
+    "Manage Volumes…" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ボリュームを管理…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Volume 管理…" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Volume 管理…" } }
+      }
+    },
+    "Managed by supervisor: auto-started after the runtime restarts" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "スーパーバイザーの管理対象：ランタイム再起動後に自動起動" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "受 supervisor 管理：运行时重启后自动拉起" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "受 supervisor 管理：執行階段重啟後自動拉起" } }
+      }
+    },
+    "Memory" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "メモリ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "内存" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "記憶體" } }
+      }
+    },
+    "Mount source not ready yet" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "マウント元がまだ準備できていません" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "挂载源还没就绪" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "掛載來源還沒就緒" } }
+      }
+    },
+    "No containers" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コンテナがありません" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有容器" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "沒有容器" } }
+      }
+    },
+    "No images" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "イメージがありません" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有镜像" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "沒有映像檔" } }
+      }
+    },
+    "No volumes" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ボリュームがありません" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有 volume" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "沒有 volume" } }
+      }
+    },
+    "OK" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "OK" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "好" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "好" } }
+      }
+    },
+    "Operation failed" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "操作に失敗しました" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "操作失败" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "操作失敗" } }
+      }
+    },
+    "Pause auto-scroll (logs keep following in the background)" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "自動スクロールを一時停止（ログはバックグラウンドで追従を継続）" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂停自动滚动（日志仍在后台跟随）" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "暫停自動捲動（日誌仍在背景跟隨）" } }
+      }
+    },
+    "Quit" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "終了" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "退出" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "結束" } }
+      }
+    },
+    "Refresh" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "更新" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "刷新" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "重新整理" } }
+      }
+    },
+    "Refresh (recomputes real usage)" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "更新（実使用量を再計算します）" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "刷新列表（会重新统计真实占用）" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "重新整理清單（會重新統計真實佔用）" } }
+      }
+    },
+    "Refresh failed — showing the last successful list" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "更新に失敗しました——最後に成功したリストを表示しています" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "刷新失败——显示的是最后一次成功的列表" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "重新整理失敗——顯示的是最後一次成功的清單" } }
+      }
+    },
+    "Reopen" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "再オープン" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重新打开" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "重新開啟" } }
+      }
+    },
+    "Restart" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "再起動" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重启" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "重啟" } }
+      }
+    },
+    "Resume auto-scroll" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "自動スクロールを再開" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复自动滚动" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "恢復自動捲動" } }
+      }
+    },
+    "Retry" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "再試行" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重试" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "重試" } }
+      }
+    },
+    "Search" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "検索" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "搜索" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "搜尋" } }
+      }
+    },
+    "Show" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "表示" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "顯示" } }
+      }
+    },
+    "Show whitelist file" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホワイトリストファイルを表示" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示白名单文件" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "顯示白名單檔案" } }
+      }
+    },
+    "Start" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "起動" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "启动" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "啟動" } }
+      }
+    },
+    "Start at login" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ログイン時に起動" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开机自动启动" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "開機自動啟動" } }
+      }
+    },
+    "Start managed containers now" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "管理対象コンテナを今すぐ起動" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "立即启动受管容器" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "立即啟動受管容器" } }
+      }
+    },
+    "Status" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "状態" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "状态" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "狀態" } }
+      }
+    },
+    "Stop" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "停止" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停止" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "停止" } }
+      }
+    },
+    "The container runtime is not running" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コンテナランタイムが実行されていません" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "容器运行时没在运行" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "容器執行階段沒在執行" } }
+      }
+    },
+    "The list may have refreshed, or the runtime is gone." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リストが更新されたか、ランタイムがなくなった可能性があります。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "列表可能已刷新，或运行时不在了。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "清單可能已重新整理，或執行階段不在了。" } }
+      }
+    },
+    "The runtime changed generation; the log stream may be stale · Reopen" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ランタイムの世代が変わりました。ログストリームが古い可能性があります · 再オープン" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "运行时已换代，日志流可能已过期 · 重新打开" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "執行階段已換代，日誌串流可能已過期 · 重新開啟" } }
+      }
+    },
+    "This action cannot be undone. Type %@ to confirm." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "この操作は取り消せません。%@ と入力して確認してください。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这个操作不可撤销。输入 %@ 确认。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這個操作不可復原。輸入 %@ 確認。" } }
+      }
+    },
+    "This will delete the local data for %@ (%@). The image can be pulled again." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%1$@（%2$@）のローカルデータを削除します。イメージは再度 pull できます。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将删除 %1$@（%2$@）的本地数据。镜像可以重新 pull。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "將刪除 %1$@（%2$@）的本機資料。映像檔可以重新 pull。" } }
+      }
+    },
+    "Type the name here" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ここに名前を入力" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在此输入名字" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "在此輸入名字" } }
+      }
+    },
+    "View Logs" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ログを表示" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "查看日志" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "查看日誌" } }
+      }
+    },
+    "View Stats" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "統計を表示" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "查看 stats" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "查看 stats" } }
+      }
+    },
+    "Volumes" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ボリューム" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Volume" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Volume" } }
+      }
+    },
+    "On Mac restart, the app must start before apiserver to catch the “runtime is back” edge" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Mac の再起動後、「ランタイムが復帰した」瞬間を捉えるには、アプリが apiserver より先に起動する必要があります" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Mac 重启后 App 要比 apiserver 先起来，才看得见「运行时回来了」这条边沿" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Mac 重啟後 App 要比 apiserver 先起來，才看得見「執行階段回來了」這條邊沿" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

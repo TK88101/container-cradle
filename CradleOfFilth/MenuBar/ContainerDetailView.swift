@@ -11,6 +11,33 @@ struct ContainerDetailView: View {
 
     let container: Container
 
+    /// Day 13：生命周期动作。view 只拿闭包和状态——拒绝制、半失败区分全在
+    /// `ContainerActionStore`（core，可测）；client 不进 view（裁决 #9）。
+    let actionInProgress: ContainerActionStore.Action?
+
+    /// 本容器的错误（Host 已按 id 取好——view 不做「是不是我的错误」的过滤）。
+    let actionError: ContainerActionStore.ActionFailure?
+    let onStop: @MainActor () async -> Void
+    let onStart: @MainActor () async -> Void
+    let onRestart: @MainActor () async -> Void
+
+    /// 停止 / 重启前的确认（裁决 #2：文案要说明 supervisor 的竞态窗口）。启动不确认。
+    private enum PendingConfirmation: Identifiable {
+        case stop
+        case restart
+
+        var id: Self { self }
+
+        /// 按钮文案 / 对话框标题共用的动词——判断收敛在这一处。
+        /// `Button(verb, role:)` 与 `confirmationDialog(title, ...)` 都是 verbatim
+        /// （传的是 `String` 变量），所以就地本地化（codex #6）。
+        var verb: String {
+            self == .stop ? String(localized: "Stop") : String(localized: "Restart")
+        }
+    }
+
+    @State private var pendingConfirmation: PendingConfirmation?
+
     /// 打开日志 / stats 窗口用（Day 9 T7/T11）——两个都是独立 `Window` scene，见
     /// `CradleOfFilthApp`。
     @Environment(\.openWindow) private var openWindow
@@ -36,29 +63,96 @@ struct ContainerDetailView: View {
                 .font(.system(.title3, design: .monospaced))
                 .textSelection(.enabled)   // 容器名 / 镜像不是密钥，可选中复制
 
-            LabeledContent("镜像") {
+            LabeledContent("Image") {
                 Text(container.image.rawValue)
                     .font(.system(.body, design: .monospaced))
                     .textSelection(.enabled)
             }
 
-            LabeledContent("状态") {
+            LabeledContent("Status") {
                 Text(ContainerStatePresentation.label(for: container.state))
             }
 
+            actionSection
+
             HStack(spacing: 12) {
-                Button("查看日志") {
+                Button("View Logs") {
                     openAndActivate(LogWindowScene.windowID)
                 }
                 .buttonStyle(.link)
 
-                Button("查看 stats") {
+                Button("View Stats") {
                     openAndActivate(StatsWindowScene.windowID)
                 }
                 .buttonStyle(.link)
             }
             .padding(.top, 4)
         }
+    }
+
+    /// 生命周期按钮组（Day 13 工作项 1）。running → 停止/重启；stopped → 启动；
+    /// 其余瞬态（stopping 等）不给按钮——状态马上就变，按了也只是撞拒绝制。
+    /// 进行中：spinner + 全部禁用（体验层；真正的防线是 store 的拒绝制）。
+    @ViewBuilder
+    private var actionSection: some View {
+        HStack(spacing: 8) {
+            if actionInProgress != nil {
+                ProgressView()
+                    .controlSize(.small)
+            }
+
+            switch container.state {
+            case .running:
+                Button("Stop") { pendingConfirmation = .stop }
+                Button("Restart") { pendingConfirmation = .restart }
+            case .stopped:
+                Button("Start") {
+                    // 启动不需要确认（计划拍板）：它不丢任何东西。
+                    Task { await onStart() }
+                }
+            case .stopping, .unknown:
+                EmptyView()
+            }
+        }
+        .disabled(actionInProgress != nil)
+        .padding(.top, 4)
+        .confirmationDialog(
+            confirmationTitle,
+            isPresented: Binding(
+                get: { pendingConfirmation != nil },
+                set: { if !$0 { pendingConfirmation = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button(pendingConfirmation?.verb ?? String(localized: "Stop"), role: .destructive) {
+                let action = pendingConfirmation
+                pendingConfirmation = nil
+                Task {
+                    switch action {
+                    case .restart: await onRestart()
+                    case .stop: await onStop()
+                    case nil: break
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) { pendingConfirmation = nil }
+        } message: {
+            // 裁决 #2 的措辞：稳态下不会被拉回，但 supervisor 正在自动拉起时后写胜。
+            Text("A managed container won\u{2019}t auto-restart after you stop it manually (unless the container runtime restarts; if the supervisor is currently auto-starting, the container may be restarted right after).")
+        }
+
+        if let actionError {
+            Text(ContainerActionPresentation.message(for: actionError))
+                .font(.callout)
+                .foregroundStyle(.red)
+                .textSelection(.enabled)
+        }
+    }
+
+    private var confirmationTitle: String {
+        // verb 已本地化；标题模式再本地化一次（key = "%@ %@?"），让问号标点随语言走。
+        let verb = pendingConfirmation?.verb ?? String(localized: "Stop")
+        return String(localized: "\(verb) \(container.id.rawValue)?")
     }
 
     /// 日志 / stats 两个窗口按钮共用的动作：先真正激活再按 id 打开
@@ -71,11 +165,11 @@ struct ContainerDetailView: View {
 
     @ViewBuilder
     private var environmentSection: some View {
-        Text("环境变量")
+        Text("Environment Variables")
             .font(.headline)
 
         if container.environment.isEmpty {
-            Text("（没有环境变量）")
+            Text("(no environment variables)")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         } else {
@@ -104,7 +198,14 @@ struct ContainerDetailHost: View {
 
     var body: some View {
         if let id, let container = lookup(id) {
-            ContainerDetailView(container: container)
+            ContainerDetailView(
+                container: container,
+                actionInProgress: model.actions.actionInProgress(for: container.id),
+                actionError: model.actions.error(for: container.id),
+                onStop: { await model.actions.stop(id: container.id) },
+                onStart: { await model.actions.start(id: container.id) },
+                onRestart: { await model.actions.restart(id: container.id) }
+            )
         } else {
             ContainerNotFoundPlaceholder(systemImage: "shippingbox", minWidth: 460, minHeight: 320)
         }

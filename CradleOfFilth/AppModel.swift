@@ -20,6 +20,10 @@ final class AppModel {
     let status: SupervisorStatusStore
     let whitelist: WhitelistUIStore
 
+    /// Day 13：详情页 stop/start/restart 的动作状态机。**client 不进 view**（裁决 #9）：
+    /// view 拿到的是闭包 + 进行中/错误态，动作语义（拒绝制、restart 半失败区分）全在 core。
+    let actions: ContainerActionStore
+
     /// M5（Day 10）：volume / image 管理窗口的 store。App 级单例——窗口关了再开，
     /// 列表与删除流程的状态不该凭空蒸发。
     let volumes: VolumeListStore
@@ -52,6 +56,13 @@ final class AppModel {
         self.images = ImageListStore(client: client)
         self.whitelist = WhitelistUIStore(writer: store)
 
+        // 动作结束刷新列表：闭包注入（store 不认识 ContainerListStore）。
+        // 引用刚建好的 containers store——`self.containers` 已在上面完成初始化。
+        let containerList = self.containers
+        self.actions = ContainerActionStore(client: client) {
+            await containerList.refresh()
+        }
+
         // Day 8：唯一决定「决策去哪儿被记下来」的地方。engine 和 supervisor 共用同一个 log
         // → reconcile 的每一步（下达 / 成败 / 单容器失败诊断）落在同一条时间线上。
         let log = OSLogSupervisorLog()
@@ -68,6 +79,15 @@ final class AppModel {
         // 系统通知桥接：store 在 MainActor 上把每份被采纳快照的 notices 投给 notifier
         // （已过 sequence 闸 → 迟到旧快照不会重弹；notifier 再按业务 key 去重）。
         status.onNotices = { [notifier] notices in notifier.handle(notices) }
+
+        // Day 14：本地化双哨兵。两本目录任一没接上（key 回显）就大声死在 DEBUG——
+        // app target 没有测试 target，这是运行态唯一的自动守卫（codex #1 #2）。
+        #if DEBUG
+        assert(
+            AppLocalizationProbe.bothCatalogsWired(),
+            "Localization catalog not wired: core .module or app main-bundle resolves keys verbatim (key echo)."
+        )
+        #endif
     }
 
     /// App 启动。**不等菜单被点开**——supervisor 的全部价值就在于「用户没在看的时候它还在盯」。

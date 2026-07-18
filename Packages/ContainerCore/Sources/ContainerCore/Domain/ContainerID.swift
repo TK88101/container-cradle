@@ -49,7 +49,7 @@ extension ContainerID {
         guard let id = ContainerID(raw) else {
             throw DecodingError.dataCorrupted(.init(
                 codingPath: decoder.codingPath,
-                debugDescription: "容器 ID 不能为空"
+                debugDescription: "Container ID must not be empty"
             ))
         }
 

@@ -50,7 +50,7 @@ struct RuntimeErrorMapper: Sendable {
 
         // 取消是**我们自己**发起的，与运行时死活无关——不必去问进程表。
         if error is CancellationError {
-            return .operationFailed(reason: "操作被取消")
+            return .operationFailed(reason: "Operation was cancelled")
         }
 
         // ★★ R14：进程表是唯一权威，**它必须先跑**。
@@ -73,7 +73,7 @@ struct RuntimeErrorMapper: Sendable {
         // 归 `.operationFailed` → `.transient` → 走退避 + 计入熔断（R5 要的正是这个：
         // 持续超时说明运行时病了，熔断报警要人工介入）。
         if let timeout = error as? XPCTimeout.TimedOut {
-            return .operationFailed(reason: "XPC 调用超时（\(timeout.after)）")
+            return .operationFailed(reason: "XPC call timed out (\(timeout.after))")
         }
 
         guard let upstream = error as? ContainerizationError else {

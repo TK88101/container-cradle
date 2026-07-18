@@ -71,7 +71,7 @@ struct MenuBarRootView: View {
 
     private var header: some View {
         HStack {
-            Text("容器")
+            Text("Containers")
                 .font(.headline)
 
             Spacer()
@@ -82,7 +82,7 @@ struct MenuBarRootView: View {
                 Image(systemName: "arrow.clockwise")
             }
             .buttonStyle(.borderless)
-            .help("刷新")
+            .help("Refresh")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -140,7 +140,7 @@ struct MenuBarRootView: View {
     }
 
     private var emptyState: some View {
-        Text("没有容器")
+        Text("No containers")
             .font(.callout)
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity)
@@ -152,11 +152,11 @@ struct MenuBarRootView: View {
             // 落盘失败必须能被看见：静默失败 = 用户以为配好了，
             // 而 supervisor 下次开机什么都不会拉。
             if let saveError = model.whitelist.saveError {
-                errorText("白名单保存失败：\(saveError)")
+                errorText(String(localized: "Failed to save whitelist: \(saveError)"))
             }
 
             Toggle(
-                "开机自动启动",
+                "Start at login",
                 isOn: Binding(
                     get: { loginItem.isEnabled },
                     set: { loginItem.setEnabled($0) }
@@ -164,20 +164,20 @@ struct MenuBarRootView: View {
             )
             .toggleStyle(.checkbox)
             .font(.callout)
-            .help("Mac 重启后 App 要比 apiserver 先起来，才看得见「运行时回来了」这条边沿")
+            .help("On Mac restart, the app must start before apiserver to catch the \u{201C}runtime is back\u{201D} edge")
 
             if let error = loginItem.error {
-                errorText("自启设置失败：\(error)")
+                errorText(String(localized: "Failed to set login item: \(error)"))
             }
 
             // M5（Day 10）：volume / image 管理入口。
             HStack {
-                Button("Volume 管理…") {
+                Button("Manage Volumes…") {
                     openManagementWindow(VolumesWindowScene.windowID)
                 }
                 .buttonStyle(.borderless)
 
-                Button("镜像管理…") {
+                Button("Manage Images…") {
                     openManagementWindow(ImagesWindowScene.windowID)
                 }
                 .buttonStyle(.borderless)
@@ -186,14 +186,14 @@ struct MenuBarRootView: View {
             }
 
             HStack {
-                Button("显示白名单文件") {
+                Button("Show whitelist file") {
                     NSWorkspace.shared.activateFileViewerSelecting([model.whitelistURL])
                 }
                 .buttonStyle(.borderless)
 
                 Spacer()
 
-                Button("退出") {
+                Button("Quit") {
                     NSApplication.shared.terminate(nil)
                 }
                 .buttonStyle(.borderless)

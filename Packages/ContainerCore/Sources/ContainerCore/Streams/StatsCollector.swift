@@ -38,7 +38,7 @@ public actor StatsCollector {
         clock: any SupervisorClock = SystemSupervisorClock(),
         sparklineLimit: Int = 60
     ) {
-        precondition(sparklineLimit > 0, "sparklineLimit 必须为正——非法配置在这里夹掉")
+        precondition(sparklineLimit > 0, "sparklineLimit must be positive — invalid config is clamped here")
         self.client = client
         self.id = id
         self.clock = clock

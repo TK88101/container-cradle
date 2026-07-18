@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Day 14：en 计数条目的复数变形（codex #7）。zh/ja 无复数，在各自 .strings 里是普通条目。 -->
+	<key>%lld volumes</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@count@</string>
+		<key>count</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld volume</string>
+			<key>other</key>
+			<string>%lld volumes</string>
+		</dict>
+	</dict>
+	<key>Start failed, waiting to retry (failed %lld times)</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>Start failed, waiting to retry (failed %#@count@)</string>
+		<key>count</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld time</string>
+			<key>other</key>
+			<string>%lld times</string>
+		</dict>
+	</dict>
+	<key>%@ · retried %lld times</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$@ · retried %2$#@count@</string>
+		<key>count</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%2$lld time</string>
+			<key>other</key>
+			<string>%2$lld times</string>
+		</dict>
+	</dict>
+	<key>Failed %lld times in a row; automatic retries stopped. Once fixed, choose "Start managed containers now" from the menu.</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>Failed %#@count@ in a row; automatic retries stopped. Once fixed, choose "Start managed containers now" from the menu.</string>
+		<key>count</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld time</string>
+			<key>other</key>
+			<string>%lld times</string>
+		</dict>
+	</dict>
+	<key>Managed containers failed %lld times in a row; the circuit is now open. Once fixed, choose "Start managed containers now" from the menu.</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>Managed containers failed %#@count@ in a row; the circuit is now open. Once fixed, choose "Start managed containers now" from the menu.</string>
+		<key>count</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld time</string>
+			<key>other</key>
+			<string>%lld times</string>
+		</dict>
+	</dict>
+</dict>
+</plist>

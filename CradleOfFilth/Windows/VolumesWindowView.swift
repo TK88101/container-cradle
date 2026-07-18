@@ -32,15 +32,15 @@ struct VolumesWindowView: View {
         .navigationTitle("Volumes")
         .task { await store.refresh() }
         .sheet(isPresented: confirmSheetShown) { confirmSheet }
-        .alert("删除失败", isPresented: deleteFailedShown) {
-            Button("好", role: .cancel) { store.cancelDeletion() }
+        .alert("Deletion failed", isPresented: deleteFailedShown) {
+            Button("OK", role: .cancel) { store.cancelDeletion() }
         } message: {
             Text(deleteFailedReason)
         }
-        .alert("卷已变化，删除已中止", isPresented: targetChangedShown) {
-            Button("好", role: .cancel) { store.cancelDeletion() }
+        .alert("Volume changed; deletion aborted", isPresented: targetChangedShown) {
+            Button("OK", role: .cancel) { store.cancelDeletion() }
         } message: {
-            Text("这个名字的卷在确认期间被外部改动过（可能被删除重建）。列表已刷新，请核对后重新发起删除。")
+            Text("A volume with this name was changed externally during confirmation (possibly deleted and recreated). The list has refreshed; please verify and start the deletion again.")
         }
     }
 
@@ -48,7 +48,7 @@ struct VolumesWindowView: View {
 
     private var toolbar: some View {
         HStack {
-            Text("\(store.displayedVolumes.count) 个 volume")
+            Text("\(store.displayedVolumes.count) volumes")
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
@@ -60,7 +60,7 @@ struct VolumesWindowView: View {
                 Image(systemName: "arrow.clockwise")
             }
             .buttonStyle(.borderless)
-            .help("刷新列表（会重新统计真实占用）")
+            .help("Refresh (recomputes real usage)")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -69,7 +69,7 @@ struct VolumesWindowView: View {
     @ViewBuilder
     private var refreshFailureBanner: some View {
         if case .failed = store.state {
-            Text("刷新失败——显示的是最后一次成功的列表")
+            Text("Refresh failed — showing the last successful list")
                 .font(.caption)
                 .foregroundStyle(.orange)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -98,7 +98,7 @@ struct VolumesWindowView: View {
         if case .loading = store.state {
             ProgressView()
         } else {
-            Text("没有 volume")
+            Text("No volumes")
                 .foregroundStyle(.secondary)
         }
         Spacer()
@@ -115,7 +115,7 @@ struct VolumesWindowView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Text("创建于 \(volume.creationDate.formatted(date: .abbreviated, time: .shortened))")
+                Text("Created \(volume.creationDate.formatted(date: .abbreviated, time: .shortened))")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
@@ -133,7 +133,7 @@ struct VolumesWindowView: View {
                 }
                 .buttonStyle(.borderless)
                 .disabled(deletionInFlight)
-                .help("删除 volume（需要输入名字确认，数据不可恢复）")
+                .help("Delete volume (requires typing the name to confirm; data cannot be recovered)")
             }
         }
         .padding(.vertical, 2)
@@ -145,9 +145,10 @@ struct VolumesWindowView: View {
     private var confirmSheet: some View {
         if case .confirming(let target) = store.deletionFlow {
             TypedConfirmationSheet(
-                title: "删除 Volume",
+                // title / destructiveLabel 在 sheet 里是 verbatim Text/Button，就地本地化（codex #6）。
+                title: String(localized: "Delete Volume"),
                 expectedName: target.name,
-                destructiveLabel: "删除",
+                destructiveLabel: String(localized: "Delete"),
                 details: VolumePresentation.deletionImpact(of: target),
                 onConfirm: { typed in
                     Task { await store.confirmDeletion(typed: typed) }

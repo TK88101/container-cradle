@@ -29,7 +29,7 @@ struct ContainerRow: View {
             Toggle("", isOn: Binding(get: { isManaged }, set: onToggleManaged))
                 .toggleStyle(.checkbox)
                 .labelsHidden()
-                .help("受 supervisor 管理：运行时重启后自动拉起")
+                .help("Managed by supervisor: auto-started after the runtime restarts")
 
             Circle()
                 .fill(Self.color(for: container.state))
@@ -58,7 +58,7 @@ struct ContainerRow: View {
                 Image(systemName: "info.circle")
             }
             .buttonStyle(.borderless)
-            .help("详情（环境变量默认打码）")
+            .help("Details (environment variables masked by default)")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)

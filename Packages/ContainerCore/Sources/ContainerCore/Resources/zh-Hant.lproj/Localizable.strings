@@ -1,0 +1,56 @@
+/* ContainerCore zh-Hant（Day 14）。key = 英文源串。 */
+
+/* ContainerStatePresentation */
+"Running" = "執行中";
+"Stopped" = "已停止";
+"Stopping" = "停止中";
+"Unknown" = "未知";
+
+/* SupervisorPresentation.headline */
+"Checking runtime…" = "正在檢查執行階段…";
+"Runtime is not running" = "執行階段未執行";
+"Runtime OK (cold start, hands off)" = "執行階段正常（冷啟動，未代勞）";
+"Runtime OK · managed containers started" = "執行階段正常 · 受管容器已拉起";
+"Starting managed containers…" = "正在拉起受管容器…";
+"Start failed, waiting to retry (failed %lld times)" = "拉起失敗，等待重試（已失敗 %lld 次）";
+"Circuit open · automatic retries stopped" = "已熔斷 · 自動重試已停止";
+
+/* SupervisorPresentation.detail / reason */
+"%@ · retried %lld times" = "%1$@ · 已重試 %2$lld 次";
+"Failed %lld times in a row; automatic retries stopped. Once fixed, choose \"Start managed containers now\" from the menu." = "連續失敗 %lld 次，已停止自動重試。修好之後請在選單裡點「立即啟動受管容器」。";
+"A whitelisted container does not exist (typo in the ID? Or was it deleted?). Check the whitelist." = "白名單裡有容器不存在（ID 拼錯了？或者容器被刪了）。請檢查白名單。";
+"No runtime to start containers on — start the apple/container runtime first." = "現在沒有執行階段可拉——先把 apple/container 的執行階段啟動起來。";
+"Waiting for mount source (external disk / network volume not attached yet?)" = "等待掛載來源就緒（外接磁碟 / 網路磁碟區還沒掛上？）";
+"Start failed (container crashes right after boot?)" = "啟動失敗（容器起來就崩？）";
+"Container not found" = "容器不存在";
+
+/* SystemNotificationContent */
+"Automatic restart stopped" = "自動重啟已停止";
+"Managed containers failed %lld times in a row; the circuit is now open. Once fixed, choose \"Start managed containers now\" from the menu." = "受管容器連續失敗 %lld 次，已熔斷。修好之後請在選單裡點「立即啟動受管容器」。";
+"A whitelisted container is missing" = "白名單裡有容器不存在";
+"A managed container cannot start (typo in the ID? Or was it deleted?). Check the whitelist." = "有受管容器起不來（ID 拼錯了？或者容器被刪了）。請檢查白名單。";
+
+/* ContainerActionPresentation */
+"Stop failed: %@" = "停止失敗：%@";
+"Start failed: %@" = "啟動失敗：%@";
+"Restart failed (stop phase failed; the container is still running): %@" = "重啟失敗（停止階段失敗，容器仍在執行）：%@";
+"Stopped, but start failed: %@" = "已停止，但啟動失敗：%@";
+"The container runtime is not running" = "容器執行階段沒在執行";
+"Container %@ not found. It may have been deleted." = "找不到容器 %@。它可能已被刪除。";
+"%@ does not exist on the host yet. An external disk or network volume may not be attached." = "主機上的 %@ 還不存在。外接磁碟或網路磁碟區可能還沒掛上。";
+
+/* VolumePresentation 四象限 */
+"size unknown" = "大小未知";
+"%@ used / max unknown" = "已用 %1$@ / 上限未知";
+"used unknown / %@ max" = "已用未知 / 上限 %1$@";
+"%@ used / %@ max" = "已用 %1$@ / 上限 %2$@";
+
+/* VolumePresentation.deletionImpact */
+"Volume: %@" = "磁碟區：%@";
+"Used: %@" = "已用：%@";
+"Used: unknown — size fetch failed" = "已用：未知——大小取得失敗";
+"Source: %@" = "來源：%@";
+"Created: %@" = "建立於：%@";
+"This volume's data cannot be recovered after deletion." = "刪除後磁碟區內資料無法復原。";
+
+"%lld volumes" = "%lld 個 volume";
