@@ -49,10 +49,28 @@ APP="$ARCHIVE/Products/Applications/$PRODUCT.app"
 STAGING="$WORK/dmg-staging"
 echo "工作区（非 iCloud 同步）：$WORK"
 
+echo "==> [0/6] 隔离契约守卫（UI 回调的 @MainActor + F6 结构守卫 + compile fixture）"
+"$REPO/Scripts/check-mainactor-callbacks.sh"
+
 echo "==> [1/6] archive (Release)"
+# ★ -derivedDataPath 指向本次 mktemp 工作区：**每次发版 archive 必然从零编译**。
+#   不加它就用默认 DerivedData 根（与日常 Debug 构建同一个），archive 可能走增量——
+#   而增量构建会把编译警告整个藏起来（v0.3.0 的 Sendable 警告就是这么活到发版前的）。
+#   「上次 archive 报了警告」只能证明那一次它编译了那个文件，推不出每次都会。
+ARCHIVE_LOG="$WORK/archive.log"
 xcodebuild -project "$REPO/CradleOfFilth.xcodeproj" -scheme "$SCHEME" -configuration Release \
-  -archivePath "$ARCHIVE" archive -quiet
+  -archivePath "$ARCHIVE" -derivedDataPath "$WORK/DerivedData" archive -quiet 2>&1 | tee "$ARCHIVE_LOG"
 test -d "$APP"
+
+# 警告闸门。**绝不能写成 `xcodebuild … | grep warning` 当成功条件**——零警告时 grep 返回 1，
+# 上面的 set -euo pipefail 会在「一切正常」时中止发版。所以先 tee 存盘，成功后再判读。
+# 只数本仓库源码路径的诊断，排除工具链噪音（appintentsmetadataprocessor 那类）。
+if grep -qE "^${REPO}/(CradleOfFilth|Packages)/.*warning:" "$ARCHIVE_LOG"; then
+  echo "error: Release 构建带编译警告，发版中止。" >&2
+  grep -E "^${REPO}/(CradleOfFilth|Packages)/.*warning:" "$ARCHIVE_LOG" | sed "s|^${REPO}/||" | sort -u >&2
+  exit 1
+fi
+echo "    警告闸门通过（本仓库源码零警告，全量编译）"
 
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :ApplicationProperties:CFBundleShortVersionString" "$ARCHIVE/Info.plist")
 DMG="$WORK/$DMG_BASENAME-$VERSION.dmg"

@@ -66,7 +66,10 @@ public final class LogWindowStore {
     private let id: ContainerID
     private let client: any ContainerRuntimeClient
     private let containers: ContainerListStore
-    private let currentGeneration: () -> RuntimeGeneration?
+    /// 隔离写进类型：实参是 `{ model.currentGeneration }`（`LogWindowView:42`），
+    /// 捕获的是 MainActor 隔离的 `model`。core 里其余 5 个注入型闭包都已按调用语意标注
+    /// （UI 回调 `@MainActor` / 跨 actor 回调 `@Sendable`），这一个是唯一的裸例外。
+    private let currentGeneration: @MainActor () -> RuntimeGeneration?
 
     private var tailer: LogTailer?
 
@@ -85,7 +88,7 @@ public final class LogWindowStore {
         id: ContainerID,
         client: any ContainerRuntimeClient,
         containers: ContainerListStore,
-        currentGeneration: @escaping () -> RuntimeGeneration?
+        currentGeneration: @escaping @MainActor () -> RuntimeGeneration?
     ) {
         self.id = id
         self.client = client

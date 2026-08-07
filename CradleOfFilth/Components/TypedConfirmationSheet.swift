@@ -30,8 +30,11 @@ struct TypedConfirmationSheet: View {
 
     /// 回传用户敲的原文——判断（canConfirm）在这里只管按钮禁用，
     /// **store 侧还会用同一判据再验一次**（防线的第二层）。
-    let onConfirm: (String) -> Void
-    let onCancel: () -> Void
+    /// 隔离写进类型：破坏性动作的确认回调，只由主线程上的按钮触发。
+    /// （闭包体内起不起 `Task` 与它自身的隔离契约无关——调用点 `VolumesWindowView:159`
+    /// 正是 `{ typed in Task { await … } }`，`Task` 起在闭包**内部**。）
+    let onConfirm: @MainActor (String) -> Void
+    let onCancel: @MainActor () -> Void
 
     @State private var typed = ""
 

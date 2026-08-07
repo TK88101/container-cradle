@@ -10,7 +10,8 @@ struct SupervisorSection: View {
 
     let state: SupervisorState
     let notice: SupervisorNotice?
-    let onForceReconcile: () -> Void
+    /// 隔离写进类型：熔断后的唯一复位手段，只由主线程上的按钮触发。
+    let onForceReconcile: @MainActor () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {

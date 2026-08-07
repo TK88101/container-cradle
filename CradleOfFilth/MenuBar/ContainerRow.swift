@@ -19,14 +19,30 @@ struct ContainerRow: View {
     /// 自动拉起是这个 App 存在的理由，它该在最显眼的地方。
     let isManaged: Bool
 
-    let onToggleManaged: (Bool) -> Void
+    /// **隔离写进类型。** 它碰 `model.whitelist`，本来就只能在主线程调。
+    ///
+    /// ★ **这个标注和下面 `set:` 的字面闭包是两件正交的事，别以为删一个另一个会报警**
+    /// （实测：去掉本标注、保留字面闭包 → 编译零警告零错误）：
+    /// - `set:` 的字面闭包负责**消除** `@isolated(any) @Sendable` 转换警告，并绕开 F6 崩溃；
+    /// - 本标注负责**把隔离写进类型**——使非 MainActor 的同步直接调用成为编译错误。
+    ///
+    /// 所以删掉本标注是**静默**失去类型保证：不报警、不报错、测试全绿。
+    /// 守它的不是编译警告，是 `Scripts/check-mainactor-callbacks.sh` 的 compile-fail fixture。
+    let onToggleManaged: @MainActor (Bool) -> Void
 
     /// 打开这个容器的详情窗口（env 在那儿逐行打码显示）。
-    let onShowDetail: () -> Void
+    let onShowDetail: @MainActor () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
-            Toggle("", isOn: Binding(get: { isManaged }, set: onToggleManaged))
+            // ★ `set:` 必须是**隐式推断隔离**的字面闭包，不能写成 `set: onToggleManaged`，
+            // 也不能写成 `set: { @MainActor value in … }`——两种写法都会让 Swift 6.3.3 的
+            // IRGen 崩溃（thunk `@$sSbScA_pSgIeAghyg_SbIeAghn_TR`，signal 6，编译期就炸）。
+            // 触发条件是「源类型在类型层面显式携带 @MainActor」→ 转 `@isolated(any) @Sendable` 的
+            // reabstraction thunk。这里的闭包隔离由编译器推断（body 在 @MainActor 上、且它同步
+            // 调用 @MainActor 的 onToggleManaged），SE-0431 保证转成 @isolated(any) 时动态保留该隔离。
+            // 详见 Docs/plans/2026-08-07-sendable-isolation-fix.md 的 F6。**别顺手简化这一行。**
+            Toggle("", isOn: Binding(get: { isManaged }, set: { onToggleManaged($0) }))
                 .toggleStyle(.checkbox)
                 .labelsHidden()
                 // `.help` 是补充说明，**不是名称**：读屏念的是名称，念不到 help。
