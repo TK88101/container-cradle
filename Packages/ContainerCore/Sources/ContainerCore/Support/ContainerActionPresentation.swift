@@ -26,37 +26,19 @@ public enum ContainerActionPresentation {
                 coreLocalized: "Stopped, but start failed: \(detail(error, locale: locale))",
                 locale: locale
             )
+        case .deleteFailed(let error):
+            // Day 16 T9.4：英文文案落地；四语译文 = B 段 T9.10 债务（本轮不跑 check-localization）。
+            String(coreLocalized: "Delete failed: \(detail(error, locale: locale))", locale: locale)
         }
     }
 
     /// `RuntimeError` → 动作错误行的展示文案。
-    /// **不是单一来源**：`RuntimeDownBanner`（app target）另有一份自己的 `RuntimeError`
-    /// switch，按横幅语境措辞（持久横幅 vs 这里的瞬时动作行），且刻意分叉——
-    /// 例如它的 `.mountSourceUnavailable` 会补一句「挂上后自动重试」，这里不补。
-    /// 两处各自进各自的目录翻译；本地化没有把它们合并（原计划想合，评估后维持分开：
-    /// 语境不同，措辞本就该不同）。别照着旧注释以为这里是唯一来源。
-    /// 穷尽 switch——新增 case 时这里编译报错，
-    /// 逼着决定新失败形态给用户看什么，而不是被 default 吞掉。
     ///
-    /// `.operationFailed` 的 reason 是 runtime 层的英文诊断串，**原样透传不翻译**
-    /// （Day 14 计划 §1：技术详情保持可搜索；UI 层负责用「Technical detail」框架标注）。
+    /// Day 16 B 段起，实现搬到了 `RuntimeErrorPresentation`（core 内单点，三处共用）——
+    /// 这里只剩转调。**依然不是「唯一来源」**：`RuntimeDownBanner`（app target）另有一份
+    /// 自己的 `RuntimeError` switch，按横幅语境措辞且刻意分叉（它的 `.mountSourceUnavailable`
+    /// 会补一句「挂上后自动重试」，这里不补）。别照着旧注释以为全仓只有一处。
     private static func detail(_ error: RuntimeError, locale: Locale) -> String {
-        switch error {
-        case .runtimeUnavailable:
-            String(coreLocalized: "The container runtime is not running", locale: locale)
-        case .containerNotFound(let id):
-            String(
-                coreLocalized: "Container \(id.rawValue) not found. It may have been deleted.",
-                locale: locale
-            )
-        case .mountSourceUnavailable(let path):
-            String(
-                coreLocalized:
-                    "\(path) does not exist on the host yet. An external disk or network volume may not be attached.",
-                locale: locale
-            )
-        case .operationFailed(let reason):
-            reason
-        }
+        RuntimeErrorPresentation.detail(error, locale: locale)
     }
 }

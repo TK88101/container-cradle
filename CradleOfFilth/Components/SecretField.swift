@@ -44,6 +44,16 @@ struct SecretField: View {
             Button(revealed ? "Hide" : "Show") { revealed.toggle() }
                 .buttonStyle(.borderless)
                 .font(.caption)
+                // 详情页一屏十几对 Show/Copy，可见文字全都一样——读屏念不出在展开哪个变量，
+                // 而这里是**密钥所在地**：按错一个就是展开了不该展开的那条。
+                // 名字里放的是 `label`（env 的 **key**，类型文档明写「不是密钥，可明示」，
+                // 且左侧已 `Text(label)` 渲染着）。**`secret` 的明文一个字都不许进来**——
+                // 可访问名称会进 AX 树、被读屏念出来、被任何辅助工具读走，那是 D2 红线。
+                // （连注释里写出那个取明文的调用都不行：`D1BoundaryTests` 的明文出口
+                //   预算按源码文本数，本文件钉死 2 处，多一处即红——这条实测过。）
+                .accessibilityLabel(Text(revealed
+                    ? String(localized: "Hide \(label)")
+                    : String(localized: "Show \(label)")))
 
             Button {
                 copyConcealed()
@@ -51,6 +61,7 @@ struct SecretField: View {
                 Image(systemName: copied ? "checkmark" : "doc.on.doc")
             }
             .buttonStyle(.borderless)
+            .accessibilityLabel(Text("Copy \(label)"))
             .help("Copy (via the concealed pasteboard; stays out of regular clipboard history)")
         }
     }

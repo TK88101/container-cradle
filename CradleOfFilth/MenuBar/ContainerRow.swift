@@ -29,6 +29,11 @@ struct ContainerRow: View {
             Toggle("", isOn: Binding(get: { isManaged }, set: onToggleManaged))
                 .toggleStyle(.checkbox)
                 .labelsHidden()
+                // `.help` 是补充说明，**不是名称**：读屏念的是名称，念不到 help。
+                // 空 label + labelsHidden 让这个勾选框在 AX 树上三条名称信道全空
+                // （P1-D 实测），读屏只念「复选框，未选中」——而它就是白名单开关本身。
+                // 名字必须带容器 id：一屏多行，不带 id 的话每一行念出来完全一样。
+                .accessibilityLabel(Text("Auto-start \(container.id.rawValue) after the runtime restarts"))
                 .help("Managed by supervisor: auto-started after the runtime restarts")
 
             Circle()
@@ -58,6 +63,8 @@ struct ContainerRow: View {
                 Image(systemName: "info.circle")
             }
             .buttonStyle(.borderless)
+            // SF Symbol 给的默认名（"Info"）同窗内每一行都一样，读屏分不清点的是哪个容器。
+            .accessibilityLabel(Text("Details for \(container.id.rawValue)"))
             .help("Details (environment variables masked by default)")
         }
         .padding(.horizontal, 12)

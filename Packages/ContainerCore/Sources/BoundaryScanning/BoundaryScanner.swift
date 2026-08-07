@@ -182,6 +182,179 @@ public enum BoundaryScanner {
         }
     }
 
+    /// 一个具名函数的**词法行区间**（签名行 … 匹配的闭合 `}`，1 起，闭区间）。
+    ///
+    /// **为什么需要**：D2 的明文预算（`revealCallSites`）此前只锁「在 `CreationMapper.swift`、
+    /// 计数=1」——文件级。同文件里别处偷加一个 `.reveal()` 时，计数会从 1 变 2 被抓到，
+    /// 但如果有人把那唯一的 reveal **挪出** `serializeEnvironmentForCreate`（比如挪进另一个 helper），
+    /// 计数仍是 1、文件仍是那个——文件级锁看不见。T7 把它收窄到**函数级**：那唯一的 reveal
+    /// 必须恰好落在这个函数的行区间内。这个 helper 给出那个区间。
+    ///
+    /// **文本启发式（同本文件其余规则）**：靠数花括号定位闭合，不解析语法树。字符串 / 注释里
+    /// 出现裸 `{` `}` 会误算——被扫的函数体里没有这种情况（`serializeEnvironmentForCreate` 的字符串
+    /// 是 `"\(...)=\(...)"`，只有圆括号）。将来若某个被锁函数体里出现字面花括号字符串，这里要复核。
+    public static func lineRangeOfFunction(named name: String, in source: String) -> ClosedRange<Int>? {
+        let escaped = NSRegularExpression.escapedPattern(for: name)
+        // `func <name>`（name 独立成词，前面是 func + 空白）。修饰符（static/private…）在 func 之前，不影响。
+        // 复用 `wordBoundaryFragment`：这条「独立词」正则在本仓库栽过两次坑（`\b` 走 UTS#29、
+        // 不支持 lookbehind，见它的注释）——第三份手写副本＝第三处将来要记得同步修的地方，禁。
+        let decl = try! Regex(wordBoundaryFragment("func[ \t]+\(escaped)"))
+
+        let numbered = source.numberedLines
+        guard let startIndex = numbered.firstIndex(where: { _, line in
+            !isComment(line) && line.firstMatch(of: decl) != nil
+        }) else {
+            return nil
+        }
+
+        let startLine = numbered[startIndex].0
+        var depth = 0
+        var openedBody = false
+
+        for index in startIndex..<numbered.count {
+            for character in numbered[index].1 {
+                if character == "{" {
+                    depth += 1
+                    openedBody = true
+                } else if character == "}" {
+                    depth -= 1
+                }
+            }
+            // 函数体的 `{` 一开，`openedBody` 置真；depth 回到 0 = 那个 `{` 的配对 `}` 到了。
+            if openedBody && depth == 0 {
+                return startLine...numbered[index].0
+            }
+        }
+
+        return nil
+    }
+
+    // MARK: - D2/R-SECRET2：clone 复用的明文 configuration 不得进日志
+
+    /// clone 复用的 `ContainerConfiguration.initProcess.environment` 是**明文 `[String]`**、
+    /// **不经 `SecretString`**——D2 的 `revealCallSites` 扫描抓不到它（那是第二密钥路径，codex #6）。
+    /// 唯一的堵法是：boundary 代码**绝不把 configuration 喂给任何日志 / print / dump sink**。
+    ///
+    /// 规则：一行同时出现（a）一个日志/打印 sink 与（b）一个 configuration 相关的符号 → 命中。
+    /// 与 `revealCallSites`/`publicPrivacyLeaks` 同为**文本启发式**：拦得住「顺手 log 一下 config 看看」，
+    /// 拦不住蓄意（把 config 拷进另一个变量名再打）。价值在让「把 config 送进日志」成为显式留痕的动作。
+    ///
+    /// - sink：`print(` / `debugPrint(` / `dump(` + os.Logger 家族的 `.debug(`…`.critical(` / `os_log(`。
+    /// - config 符号：`configuration`（含 `ContainerConfiguration`/`ProcessConfiguration`，大小写不敏感）、
+    ///   `initProcess`、以及独立词 `config` / `sanitized`。后者是 clone 提交里承载明文配置的**真实
+    ///   本地量名**（`LiveContainerRuntimeClient.create(clonedFrom:)` 的 `let sanitized`）——漏了它，
+    ///   `log.debug("\(sanitized)")` 会带着明文 env 溜过去（codex T7-review 抓的真实假阴）。
+    ///   `systemConfig` 这类更长标识符不算（独立词判定天然排除）。
+    ///
+    /// **已知边界（文本启发式的自觉取舍，非缺陷；越界靠设计 + 白名单文件 diff review 兜底）**：
+    /// - 只看**同一行**：`logger.debug("""` 与 `\(config)` 分处多行的多行字符串 sink 看不见——
+    ///   那已越过「顺手 log」的威胁模型，属蓄意/罕见形态，不为它引入跨行括号追踪。
+    /// - sink 要求 `print(` 紧邻括号：`print (config)`（中间有空格）漏——同上，非意外形态。
+    /// - 消息文本里的裸词也算命中（`logger.info("configuration loaded")` 会误报）：secret guard
+    ///   **宁可假阳**（一眼看见、改词即可），假阴才是事故——这是刻意的 fail-closed 方向。
+    public static func configurationLogSites(in source: String) -> [Violation] {
+        let sinks = [
+            "print(", "debugPrint(", "dump(", "os_log(",
+            ".debug(", ".info(", ".notice(", ".warning(", ".error(", ".critical(", ".log(", ".trace(",
+        ]
+        let configWord = identifierPattern("config")
+        let sanitizedWord = identifierPattern("sanitized")
+
+        return source.numberedLines.compactMap { number, line in
+            guard !isComment(line) else { return nil }
+            guard sinks.contains(where: { line.contains($0) }) else { return nil }
+
+            let mentionsConfig =
+                line.range(of: "configuration", options: .caseInsensitive) != nil
+                || line.contains("initProcess")
+                || line.firstMatch(of: configWord) != nil
+                || line.firstMatch(of: sanitizedWord) != nil
+
+            guard mentionsConfig else { return nil }
+            return Violation(line: number, text: line, detail: "configuration sent to a log/print sink")
+        }
+    }
+
+    // MARK: - R-HANG：上游调用必须套超时
+
+    /// 上游调用**未套超时**的扫描（§3.7 / R-HANG / T7）。
+    ///
+    /// **为什么靠形状不靠记得**：本仓库因「漏写一个 `XPCTimeout`」栽过（回滚路径那句 `try? await stop`
+    /// 当初没套，XPC 在回滚上不回话就冻住 supervisor——CLAUDE.md 坑清单）。文件开头写「每个上游调用都
+    /// 套 XPCTimeout」是**注释，拦不住漏写**。这条扫描把它变成结构约束。
+    ///
+    /// 规则：任何 `await <…upstream>.<method>(` 调用行，其**词法**必须嵌套在一个由 `wrapper(` 打开的
+    /// 闭包内（靠花括号深度追踪），否则命中——除非 `method ∈ exemptMethods`。
+    ///
+    /// **落点 = `LiveContainerRuntimeClient`，不是 `LiveUpstreamClient`（T7 设计裁定）**：
+    /// 超时住在有判断力的 LCRC 层（`XPCTimeout.race { upstream.X }` 兜住整段 `upstream.X`），
+    /// 而 `LiveUpstreamClient` 里的原始 `ClientImage.` / `containerConfigFromFlags` 由**调用方**传递性
+    /// 兜住（`createTimeout` 兜 `createContainer` 内部的装配 + create）。§3.7 字面点名的原始符号住在
+    /// 那个覆盖率豁免层、恰恰**不**在那里套超时——所以扫 LCRC 的 `upstream.` 调用才是对的落点。
+    ///
+    /// **唯一豁免 = 流式 `pullImage`**：无界下载、以进度作 liveness、不在 supervisor reconcile 路径上，
+    /// 控制走流取消而非计时（见 `LiveContainerRuntimeClient.pullImage` 注释）。
+    ///
+    /// **callee 匹配靠命名约定**：`await` 后接**名字里含 `upstream`（大小写不敏感）的独立标识符**，
+    /// 于是 `upstream` / `usageUpstream`（enrichment 的别名）都被覆盖，而 `errors.map` / `accumulator.fold`
+    /// / `collector.collect` 这些非上游的 await 调用天然不匹配。可选的 `<限定符>.` 前缀也吃得下——
+    /// `await self.upstream.stop(...)` 与裸 `await upstream.stop(...)` 一样被抓（codex T7-review 补的洞：
+    /// 原正则只认紧跟 `await` 的标识符，`self.upstream` 这个惯用写法会漏）。上游别名请沿用「名字含
+    /// upstream」的约定，否则这条扫描看不见它——这是文本启发式的已知边界。
+    public static func untimedUpstreamCalls(
+        in source: String,
+        wrapper: String,
+        exemptMethods: Set<String>
+    ) -> [Violation] {
+        // await [<限定符>.]<…upstream>.<method>(   —— callee 是「名字含 upstream 的独立标识符」，
+        // 前面允许一层可选的 `self.` / `foo.` 限定符（否则 `await self.upstream.X` 会漏）。
+        let call = try! Regex(
+            "await[ \t]+(?:[A-Za-z0-9_]+\\.)?[A-Za-z0-9_]*[Uu]pstream(?![A-Za-z0-9_])\\.([A-Za-z0-9_]+)[ \t]*\\("
+        )
+        let wrapperOpener = "\(wrapper)("
+
+        var depth = 0
+        var wrapperScopes: [Int] = []   // 当前打开着的 wrapper 闭包所在的花括号深度
+        var violations: [Violation] = []
+
+        for (number, line) in source.numberedLines {
+            let commentLine = isComment(line)   // 每行判一次，下面两处复用（efficiency：省一次 trim 分配）。
+
+            // 1) 先按**行首状态**判定这行的上游调用是否被 wrapper 罩着。
+            //    调用行永远在 wrapper 开启行**之后**（本仓库习惯：`race(after:) {` 单独一行、
+            //    调用另起一行），故行首时 wrapperScopes 已含该 wrapper 深度。
+            if !commentLine, let match = line.firstMatch(of: call) {
+                let method = match.output[1].substring.map(String.init) ?? ""
+                if !exemptMethods.contains(method) && wrapperScopes.isEmpty {
+                    violations.append(Violation(
+                        line: number,
+                        text: line,
+                        detail: "await upstream.\(method) 不在 \(wrapper) 内"
+                    ))
+                }
+            }
+
+            // 2) 再按本行的花括号更新深度与 wrapper 作用域栈。
+            var pendingWrapper = !commentLine && line.contains(wrapperOpener)
+            for character in line {
+                if character == "{" {
+                    depth += 1
+                    if pendingWrapper {
+                        wrapperScopes.append(depth)
+                        pendingWrapper = false
+                    }
+                } else if character == "}" {
+                    if wrapperScopes.last == depth {
+                        wrapperScopes.removeLast()
+                    }
+                    depth -= 1
+                }
+            }
+        }
+
+        return violations
+    }
+
     // MARK: - D2：不可信上游文本不得以 `.public` 记入日志
 
     /// `marker`（承载不可信上游文本的符号，如 `privateDetail`）**自己的** `privacy:` 标注若是

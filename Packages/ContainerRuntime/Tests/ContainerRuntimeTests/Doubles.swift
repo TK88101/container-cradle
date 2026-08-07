@@ -1,6 +1,8 @@
 import ContainerCore
 import ContainerResource
+import ContainerizationError
 import Foundation
+import TerminalProgress
 
 @testable import ContainerRuntime
 
@@ -21,6 +23,10 @@ actor FakeUpstreamClient: UpstreamClient {
         case listImages
         case deleteImage(String)
         case loadedInfraRefs
+        case create(String)
+        case pull(String)
+        case deleteContainer(id: String, force: Bool)
+        case cloneCreate(String)
     }
 
     struct Failure: Error, Equatable {
@@ -70,11 +76,22 @@ actor FakeUpstreamClient: UpstreamClient {
     func get(id: String) async throws -> ContainerSnapshot {
         calls.append(.get(id))
         if let failGet { throw failGet }
+        // 一旦 deleteContainer 触发（且注入了 recheck 错误），后续 get 抛该错——模拟「delete 后
+        // 复核 get 因超时/映射失败而无法确定存在性」（codex P1：这种失败绝不能被当成「已删成功」）。
+        if let recheckGetError { throw recheckGetError }
         guard let snapshot = snapshots[id] else {
-            throw Failure(label: "fake: 没有这个容器 \(id)")
+            // **真上游对不存在的容器抛 `.notFound`**（已核 ContainerClient.swift:112）——Fake 必须忠实
+            // 于此，否则「确实不存在」与「get 失败」在 mapper 眼里无从区分（正是 codex P1 要守的边界）。
+            throw ContainerizationError(.notFound, message: "fake: 没有这个容器 \(id)")
         }
         return snapshot
     }
+
+    /// deleteContainer 触发后要让复核 get 抛的错（默认 nil）。用于钉「recheck 无法确定存在性 →
+    /// 抛原始 delete 错误，绝不谎称删成功」。
+    private var getErrorAfterDelete: (any Error)?
+    private var recheckGetError: (any Error)?
+    func setGetFailsAfterDelete(_ error: (any Error)?) { getErrorAfterDelete = error }
 
     func launchInitProcess(_ snapshot: ContainerSnapshot) async throws {
         calls.append(.launch(snapshot.id))
@@ -109,6 +126,115 @@ actor FakeUpstreamClient: UpstreamClient {
 
     /// 让 `stop` 延迟 `delay` 后才成功（模拟容器吃满 SIGTERM 优雅期才退出）。
     func setStopDelay(_ delay: Duration?) { stopDelay = delay }
+
+    // MARK: - Day 16：create（T6）
+
+    private var failCreate: (any Error)?
+    private var hangCreate = false
+    private var createResultID: String?
+
+    func setFailCreate(_ error: (any Error)?) { failCreate = error }
+
+    /// 让 `createContainer` 永远不回话——测「create 也套 XPCTimeout，不冻住」。
+    func setHangCreate(_ hang: Bool) { hangCreate = hang }
+
+    /// 覆盖 create 返回的 id（默认回 `inputs.id`）。用来测「上游回了个映不回 domain 的 id」。
+    func setCreateResultID(_ id: String?) { createResultID = id }
+
+    func createContainer(_ inputs: CreationMapper.CreateInputs) async throws -> String {
+        calls.append(.create(inputs.id))
+
+        if hangCreate {
+            await withUnsafeContinuation { (_: UnsafeContinuation<Void, Never>) in }
+        }
+
+        if let failCreate { throw failCreate }
+        return createResultID ?? inputs.id
+    }
+
+    // MARK: - Day 16：pull（T6.2）
+
+    private var pullBatches: [[ProgressUpdateEvent]] = []
+    private var failPull: (any Error)?
+    private var hangPull = false
+
+    /// 脚本化上游反向 XPC 分批投递的进度事件。桥要把它们跨批折叠成累积快照。
+    func setPullBatches(_ batches: [[ProgressUpdateEvent]]) { pullBatches = batches }
+    func setFailPull(_ error: (any Error)?) { failPull = error }
+
+    /// 让 `pullImage` 永远不回话（投批之前就挂死）——留给「无 blanket 超时、靠取消控制」的探究。
+    func setHangPull(_ hang: Bool) { hangPull = hang }
+
+    func pullImage(reference: String, onProgress: @escaping ProgressUpdateHandler) async throws {
+        calls.append(.pull(reference))
+
+        if hangPull {
+            await withUnsafeContinuation { (_: UnsafeContinuation<Void, Never>) in }
+        }
+
+        // 逐批回投——桥要在批与批之间保住累积状态（T2b 回归的靶子）。
+        for batch in pullBatches {
+            await onProgress(batch)
+        }
+
+        if let failPull { throw failPull }
+    }
+
+    // MARK: - Day 16：delete（T6.3）
+
+    private var failDelete: (any Error)?
+    private var hangDelete = false
+    private var removeSnapshotOnDelete = true
+
+    func setFailDelete(_ error: (any Error)?) { failDelete = error }
+
+    /// 让 `deleteContainer` 永远不回话——测「delete 也套 XPCTimeout，不冻住」。
+    func setHangDelete(_ hang: Bool) { hangDelete = hang }
+
+    /// 默认成功/尝试删除会把快照移除（复核 get 即报不存在）。设 false 模拟
+    /// 「delete 报错且容器仍在」（真失败，复核应报存在）。
+    func setRemoveSnapshotOnDelete(_ remove: Bool) { removeSnapshotOnDelete = remove }
+
+    func deleteContainer(id: String, force: Bool) async throws {
+        calls.append(.deleteContainer(id: id, force: force))
+
+        if hangDelete {
+            await withUnsafeContinuation { (_: UnsafeContinuation<Void, Never>) in }
+        }
+
+        // 武装复核 get 的失败（若注入）——让紧接着的复核 get 抛「无法确定存在性」的错。
+        recheckGetError = getErrorAfterDelete
+        // 先移除再决定成败：模拟「delete 实际删掉了但 XPC 回了个错」（幂等复核的靶子）。
+        if removeSnapshotOnDelete { snapshots[id] = nil }
+
+        if let failDelete { throw failDelete }
+    }
+
+    // MARK: - Day 16：clone 提交（T6.5）
+
+    private var failCloneCreate: (any Error)?
+    private var hangCloneCreate = false
+    private var cloneResultID: String?
+
+    /// 供断言 sanitize 结果**透传到上游**（id 改没改、networks 清没清）——只能靠它证，
+    /// 断言返回值证不了。
+    private(set) var lastCloneConfiguration: ContainerConfiguration?
+
+    func setFailCloneCreate(_ error: (any Error)?) { failCloneCreate = error }
+    func setHangCloneCreate(_ hang: Bool) { hangCloneCreate = hang }
+    func setCloneResultID(_ id: String?) { cloneResultID = id }
+
+    func createFromConfiguration(_ configuration: ContainerConfiguration) async throws -> String {
+        calls.append(.cloneCreate(configuration.id))
+        lastCloneConfiguration = configuration
+
+        if hangCloneCreate {
+            await withUnsafeContinuation { (_: UnsafeContinuation<Void, Never>) in }
+        }
+
+        if let failCloneCreate { throw failCloneCreate }
+        return cloneResultID ?? configuration.id
+    }
 
     // MARK: - logs / stats（Day 9 M4）
 

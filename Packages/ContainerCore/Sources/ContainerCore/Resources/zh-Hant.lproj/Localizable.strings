@@ -54,3 +54,36 @@
 "This volume's data cannot be recovered after deletion." = "刪除後磁碟區內資料無法復原。";
 
 "%lld volumes" = "%lld 個 volume";
+
+/* ===== ContainerActionPresentation：Day 16 T9.10 補齊的 delete 債務 ===== */
+"Delete failed: %@" = "刪除失敗：%@";
+
+/* ===== ContainerCreationPresentation：表單欄位錯誤（Day 16 T9.5） ===== */
+"Enter a container name" = "請輸入容器名稱";
+"Container names may only contain letters, digits, dots, dashes and underscores" = "容器名稱只能使用英文字母、數字、點、連字號與底線";
+"Enter an image reference, for example nginx:latest" = "請輸入映像檔參照，例如 nginx:latest";
+"Mount path %@ must start with a slash" = "掛載路徑 %@ 必須以斜線開頭";
+"Mount path %@ must not contain a colon" = "掛載路徑 %@ 不能包含冒號";
+"Mount path %@ is used more than once" = "掛載路徑 %@ 重複使用了";
+"%@ is not a valid volume name" = "%@ 不是合法的磁碟區名稱";
+"An environment variable name is empty" = "有一個環境變數名稱是空的";
+"Environment variable name %@ must not contain an equals sign" = "環境變數名稱 %@ 不能包含等號";
+"Environment variable %@ is set more than once" = "環境變數 %@ 重複設定了";
+
+/* ===== ContainerCreationPresentation：create / clone 提交失敗 ===== */
+"A container named %@ already exists" = "已經有一個叫 %@ 的容器了";
+"Could not check existing containers, so nothing was created: %@" = "無法確認既有容器，因此什麼都沒建立：%@";
+"Create failed: %@" = "建立失敗：%@";
+"Container %@ was created and kept as stopped; starting it failed: %@" = "容器 %1$@ 已建立並保留為已停止；啟動失敗：%2$@";
+"Give the clone a different name from the source container" = "複製時要用一個跟來源容器不同的名稱";
+"Clone failed: %@" = "複製失敗：%@";
+"Could not load the source container configuration: %@" = "無法讀取來源容器的設定：%@";
+
+/* ===== ImagePullPresentation（Day 16 T9.5） ===== */
+"Could not start the pull: %@" = "無法開始拉取：%@";
+"The pull was interrupted: %@" = "拉取中斷了：%@";
+"Enter an image reference to pull" = "請輸入要拉取的映像檔參照";
+"Pulling %@…" = "正在拉取 %@…";
+"Stopped waiting for %@; it may still be downloading" = "已停止等待 %@；背景可能還在下載";
+"%@ failed: %@" = "%1$@ 失敗：%2$@";
+"Pulled %@" = "已拉取 %@";

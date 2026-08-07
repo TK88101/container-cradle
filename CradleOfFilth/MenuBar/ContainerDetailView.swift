@@ -21,10 +21,15 @@ struct ContainerDetailView: View {
     let onStart: @MainActor () async -> Void
     let onRestart: @MainActor () async -> Void
 
-    /// 停止 / 重启前的确认（裁决 #2：文案要说明 supervisor 的竞态窗口）。启动不确认。
+    /// 删除（Day 16 T9.9）。返回 true = 删成功（`delete` 返回 true ∧ `error(for:) == nil`，
+    /// 组合在 Host 里做——view 的 `actionError` prop 是渲染时快照，await 之后已经陈旧）。
+    let onDelete: @MainActor () async -> Bool
+
+    /// 停止 / 重启 / 删除前的确认（裁决 #2：文案要说明 supervisor 的竞态窗口）。启动不确认。
     private enum PendingConfirmation: Identifiable {
         case stop
         case restart
+        case delete
 
         var id: Self { self }
 
@@ -32,7 +37,11 @@ struct ContainerDetailView: View {
         /// `Button(verb, role:)` 与 `confirmationDialog(title, ...)` 都是 verbatim
         /// （传的是 `String` 变量），所以就地本地化（codex #6）。
         var verb: String {
-            self == .stop ? String(localized: "Stop") : String(localized: "Restart")
+            switch self {
+            case .stop: String(localized: "Stop")
+            case .restart: String(localized: "Restart")
+            case .delete: String(localized: "Delete")
+            }
         }
     }
 
@@ -41,6 +50,9 @@ struct ContainerDetailView: View {
     /// 打开日志 / stats 窗口用（Day 9 T7/T11）——两个都是独立 `Window` scene，见
     /// `CradleOfFilthApp`。
     @Environment(\.openWindow) private var openWindow
+
+    /// 删除成功后关掉本详情窗（Day 16 T9.9）。
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ScrollView {
@@ -85,6 +97,12 @@ struct ContainerDetailView: View {
                     openAndActivate(StatsWindowScene.windowID)
                 }
                 .buttonStyle(.link)
+
+                // Day 16 T9.7：以此容器为模板 clone（激活纪律同上两个按钮）。
+                Button("Clone…") {
+                    openAndActivate(CloneContainerWindowScene.windowID)
+                }
+                .buttonStyle(.link)
             }
             .padding(.top, 4)
         }
@@ -113,6 +131,13 @@ struct ContainerDetailView: View {
             case .stopping, .unknown:
                 EmptyView()
             }
+
+            Spacer()
+
+            // Day 16 T9.9：删除入口。确认对话框**不打名字**——容器可重建，档次低于删
+            // volume（上位 §3.4 裁定）。删除后白名单里可能留下孤儿 id：无害（reconcile
+            // 只会跳过它），自动清理已登记 P2（B 段 §3.5），本轮不碰白名单写链。
+            Button("Delete…", role: .destructive) { pendingConfirmation = .delete }
         }
         .disabled(actionInProgress != nil)
         .padding(.top, 4)
@@ -131,14 +156,14 @@ struct ContainerDetailView: View {
                     switch action {
                     case .restart: await onRestart()
                     case .stop: await onStop()
+                    case .delete: await deleteAndClose()
                     case nil: break
                     }
                 }
             }
             Button("Cancel", role: .cancel) { pendingConfirmation = nil }
         } message: {
-            // 裁决 #2 的措辞：稳态下不会被拉回，但 supervisor 正在自动拉起时后写胜。
-            Text("A managed container won\u{2019}t auto-restart after you stop it manually (unless the container runtime restarts; if the supervisor is currently auto-starting, the container may be restarted right after).")
+            confirmationMessage
         }
 
         if let actionError {
@@ -153,6 +178,25 @@ struct ContainerDetailView: View {
         // verb 已本地化；标题模式再本地化一次（key = "%@ %@?"），让问号标点随语言走。
         let verb = pendingConfirmation?.verb ?? String(localized: "Stop")
         return String(localized: "\(verb) \(container.id.rawValue)?")
+    }
+
+    /// 确认正文按动作分派：stop/restart 说 supervisor 竞态；delete 说清丢什么、不丢什么。
+    @ViewBuilder
+    private var confirmationMessage: some View {
+        if pendingConfirmation == .delete {
+            Text("The container and its writable layer will be deleted. Volume data is not affected.")
+        } else {
+            // 裁决 #2 的措辞：稳态下不会被拉回，但 supervisor 正在自动拉起时后写胜。
+            Text("A managed container won\u{2019}t auto-restart after you stop it manually (unless the container runtime restarts; if the supervisor is currently auto-starting, the container may be restarted right after).")
+        }
+    }
+
+    /// 删成功即关窗（成功信号已在 Host 组合：返回 true ∧ `error(for:) == nil`）。
+    /// 失败留在窗内：`actionError` prop 下一次渲染会带出 `.deleteFailed` 文案。
+    private func deleteAndClose() async {
+        if await onDelete() {
+            dismiss()
+        }
     }
 
     /// 日志 / stats 两个窗口按钮共用的动作：先真正激活再按 id 打开
@@ -204,7 +248,14 @@ struct ContainerDetailHost: View {
                 actionError: model.actions.error(for: container.id),
                 onStop: { await model.actions.stop(id: container.id) },
                 onStart: { await model.actions.start(id: container.id) },
-                onRestart: { await model.actions.restart(id: container.id) }
+                onRestart: { await model.actions.restart(id: container.id) },
+                onDelete: {
+                    // 成功信号 = 返回 true ∧ 错误槽为空（A 段 codex #8：不靠列表内容推断）。
+                    // 在这里组合：闭包 await 之后读到的是 store 的**新鲜**状态，
+                    // 而 view 的 `actionError` prop 是渲染时快照。
+                    let finished = await model.actions.delete(id: container.id)
+                    return finished && model.actions.error(for: container.id) == nil
+                }
             )
         } else {
             ContainerNotFoundPlaceholder(systemImage: "shippingbox", minWidth: 460, minHeight: 320)

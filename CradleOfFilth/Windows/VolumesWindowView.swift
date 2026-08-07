@@ -60,6 +60,9 @@ struct VolumesWindowView: View {
                 Image(systemName: "arrow.clockwise")
             }
             .buttonStyle(.borderless)
+            // 理由同 MenuBarRootView 的刷新按钮：不显式给名就是靠 Apple 的 SF Symbol 默认描述，
+            // 那串字不归我们、也不进我们的 catalog。名称用短句，细节（重算真实占用）留给 help。
+            .accessibilityLabel(Text("Refresh"))
             .help("Refresh (recomputes real usage)")
         }
         .padding(.horizontal, 12)
@@ -133,6 +136,9 @@ struct VolumesWindowView: View {
                 }
                 .buttonStyle(.borderless)
                 .disabled(deletionInFlight)
+                // 删 volume 是本仓库最高风险的操作（数据不可恢复），而每行的默认名
+                // 全是 "Trash"——读屏用户按下去之前根本不知道删的是哪一个。
+                .accessibilityLabel(Text("Delete volume \(volume.name)"))
                 .help("Delete volume (requires typing the name to confirm; data cannot be recovered)")
             }
         }

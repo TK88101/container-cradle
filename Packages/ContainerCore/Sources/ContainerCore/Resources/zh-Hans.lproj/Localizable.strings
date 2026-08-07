@@ -56,3 +56,36 @@
 
 /* ===== spike golden pattern（app 侧 count 文案的 core 验证样板） ===== */
 "%lld volumes" = "%lld 个 volume";
+
+/* ===== ContainerActionPresentation：Day 16 T9.10 补齐的 delete 债务 ===== */
+"Delete failed: %@" = "删除失败：%@";
+
+/* ===== ContainerCreationPresentation：表单字段错（Day 16 T9.5） ===== */
+"Enter a container name" = "请输入容器名";
+"Container names may only contain letters, digits, dots, dashes and underscores" = "容器名只能包含字母、数字、点、连字符和下划线";
+"Enter an image reference, for example nginx:latest" = "请输入镜像引用，例如 nginx:latest";
+"Mount path %@ must start with a slash" = "挂载路径 %@ 必须以斜杠开头";
+"Mount path %@ must not contain a colon" = "挂载路径 %@ 不能包含冒号";
+"Mount path %@ is used more than once" = "挂载路径 %@ 重复使用了";
+"%@ is not a valid volume name" = "%@ 不是合法的卷名";
+"An environment variable name is empty" = "有一个环境变量名是空的";
+"Environment variable name %@ must not contain an equals sign" = "环境变量名 %@ 不能包含等号";
+"Environment variable %@ is set more than once" = "环境变量 %@ 重复设置了";
+
+/* ===== ContainerCreationPresentation：create / clone 提交失败 ===== */
+"A container named %@ already exists" = "已经有一个叫 %@ 的容器了";
+"Could not check existing containers, so nothing was created: %@" = "无法确认已有容器，因此什么都没创建：%@";
+"Create failed: %@" = "创建失败：%@";
+"Container %@ was created and kept as stopped; starting it failed: %@" = "容器 %1$@ 已创建并保留为已停止；启动失败：%2$@";
+"Give the clone a different name from the source container" = "克隆要用一个跟源容器不同的名字";
+"Clone failed: %@" = "克隆失败：%@";
+"Could not load the source container configuration: %@" = "无法读取源容器的配置：%@";
+
+/* ===== ImagePullPresentation（Day 16 T9.5） ===== */
+"Could not start the pull: %@" = "无法开始拉取：%@";
+"The pull was interrupted: %@" = "拉取中断了：%@";
+"Enter an image reference to pull" = "输入要拉取的镜像引用";
+"Pulling %@…" = "正在拉取 %@…";
+"Stopped waiting for %@; it may still be downloading" = "已停止等待 %@；后台可能还在下载";
+"%@ failed: %@" = "%1$@ 失败：%2$@";
+"Pulled %@" = "已拉取 %@";

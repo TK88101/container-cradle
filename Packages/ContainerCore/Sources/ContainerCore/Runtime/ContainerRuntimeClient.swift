@@ -84,4 +84,50 @@ public protocol ContainerRuntimeClient: Sendable {
     /// reference 命中 infra refs → 拒绝。UI 的禁用只是 UX（旧快照可能过期），
     /// 这里才是防线。
     func deleteImage(reference: ImageRef) async throws(RuntimeError)
+
+    // MARK: - Day 16：创建 / 克隆 / pull / 删除容器（v1.1）
+
+    /// 全新创建一个容器。返回**持久化 identity**（`ContainerID`）。
+    ///
+    /// 入参 `spec.name` 是**用户提议的合法名**（`ContainerName`），不等于已持久化的 identity
+    /// （codex #7）——创建成功后由实现方确认并返回 `ContainerID`，调用方据此起停，
+    /// 不靠对名字做字符串手术重构 id。
+    ///
+    /// **名字唯一性不在这里保证**：`spec` 只自洽（单个 spec 校验），init 看不到别的容器。
+    /// 唯一性由调用方在提交前显式存在性检查兜住（`ContainerCreationStore` 用 `list()` 命中即拒，
+    /// 靠存在性不嗅错误码——R14）。
+    func create(_ spec: ContainerCreationSpec) async throws(RuntimeError) -> ContainerID
+
+    /// clone「以此为模板新建」的预填数据——**纯 domain**（codex #1）。
+    ///
+    /// app 永不碰上游 `configuration`：桥内从 `snapshot.configuration` 提 image + env
+    /// （装进 `SecretString`，**不 reveal**——D2）+ 按挂载类型计数，只让**摘要**上浮成 domain。
+    /// 完整配置仍住桥内白名单文件（D1 / ruling 3）。
+    func cloneTemplate(for source: ContainerID) async throws(RuntimeError) -> ContainerCloneTemplate
+
+    /// 以 `source` 为模板新建。返回新容器的 `ContainerID`（同 `create(_:)`，honoring codex #7）。
+    ///
+    /// `envOverride == nil` = 原样克隆：env 从不进 UI、不进 `SecretString`、零上屏（最干净路径）；
+    /// 桥内复用源 configuration 的明文 env（**第二密钥路径**，由 clone-禁-log 源码扫描守，codex #6）。
+    /// `envOverride != nil` 时经 `serializeEnvironmentForCreate`（D2 唯一 reveal 出口）替换 env。
+    func create(
+        clonedFrom source: ContainerID,
+        name: ContainerName,
+        envOverride: [EnvironmentVariable]?
+    ) async throws(RuntimeError) -> ContainerID
+
+    /// App 内 pull 一个公开镜像，边拉边报进度。
+    ///
+    /// **建流阶段** typed（`RuntimeError`）；**流内部** `any Error`——同 `followLogs`
+    /// （Swift 没有 typed-throws 的 async 序列，这是语言约束）。桥内只用 `RuntimeError`
+    /// existential `finish(throwing:)`，消费方在 `for try await` 的 catch 里拿到的已是 domain 错误。
+    /// 进度语义无密钥面（镜像层进度）→ 进 D1 白名单但**不**进 D2 reveal 预算。
+    func pullImage(_ reference: ImageRef) async throws(RuntimeError) -> AsyncThrowingStream<PullProgress, any Error>
+
+    /// 删除一个容器（**桥内确定序列**，codex #12）：
+    /// 前置 `get(id)` → 不存在直接返回 domain `.containerNotFound`（不经 delete、不嗅错误码）；
+    /// 存在则 `delete(force: true)`（删 running 走 server SIGKILL+cleanup）；delete 报错**仅当 runtime
+    /// 可达**才 `get` 复核（存在=真失败原样抛，不存在=已删成功当幂等）。
+    /// **绝不把「list/get 失败」解读成「容器不存在」**（runtime-down 与 not-found 不可混）。
+    func delete(id: ContainerID) async throws(RuntimeError)
 }

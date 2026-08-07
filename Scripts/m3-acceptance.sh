@@ -23,7 +23,9 @@ set -euo pipefail
 CANARY="cof-canary"
 TIMEOUT="${TIMEOUT:-40}"
 WHITELIST="$HOME/Library/Application Support/CradleOfFilth/supervisor.json"
-APP_PROCESS="CradleOfFilth"
+# Day 16 T10 勘误：Day 12 起 PRODUCT_NAME = "Container Cradle"，进程名随之改变
+#（pgrep -x 按完整名匹配；旧值 CradleOfFilth 会让前置检查恒 FAIL）。
+APP_PROCESS="Container Cradle"
 
 # container CLI 不走 PATH（防劫持，与 CLIProcessRunner 同纪律）；找不到再退回 PATH。
 CONTAINER="/usr/local/bin/container"

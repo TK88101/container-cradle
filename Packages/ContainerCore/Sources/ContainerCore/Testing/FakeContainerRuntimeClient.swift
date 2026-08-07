@@ -29,6 +29,12 @@ public actor FakeContainerRuntimeClient: ContainerRuntimeClient {
         case deleteVolume
         case listImages
         case deleteImage
+        // Day 16
+        case create
+        case cloneTemplate
+        case createClone
+        case pullImage
+        case deleteContainer
     }
 
     /// 调用流水的一条。
@@ -47,6 +53,12 @@ public actor FakeContainerRuntimeClient: ContainerRuntimeClient {
         case deleteVolume(String)
         case listImages
         case deleteImage(ImageRef)
+        // Day 16
+        case create(ContainerName)
+        case cloneTemplate(ContainerID)
+        case createClone(source: ContainerID, name: ContainerName)
+        case pullImage(ImageRef)
+        case deleteContainer(ContainerID)
     }
 
     /// 用数组而非字典存：`list()` 的返回顺序必须**确定**，
@@ -72,6 +84,30 @@ public actor FakeContainerRuntimeClient: ContainerRuntimeClient {
     /// `stats` 要按顺序吐出的样本（FIFO）。取空之后重复返回最后一个（若从未配置过，
     /// 返回一个全 `nil` 的样本——「问了，但什么都没测到」，不是崩溃也不是编造数字）。
     private var statsSamples: [ContainerStatsSample] = []
+
+    /// `pullImage` 要按顺序 yield 的进度。默认空——不配置就是一个立刻 finish 的空流。
+    private var pullProgressUpdates: [PullProgress] = []
+
+    /// pull 流可控 probe（Day 16 T9.0，codex #4）：`true` 时 `pullImage` 吐完初始 `pullProgressUpdates`
+    /// 后**挂起**（不 finish），continuation 存 `pullContinuation` 供测试主动 yield/finish/fail——
+    /// 测得到「取消后旧流迟到事件被 store 令牌拦下」这类竞态（followLogs 那种纯挂起测不到主动投递）。
+    private var pullStreamSuspends = false
+    private var pullContinuation: AsyncThrowingStream<PullProgress, any Error>.Continuation?
+
+    /// 普通（非挂起）pull 流：yield 完以此**错误**结束（`finish(throwing:)`）而非正常 finish——
+    /// 测「流内失败」不必用挂起流（避免「ready 前操作 → 冻死」的赛跑）。nil = 正常 finish。
+    private var pullStreamError: RuntimeError?
+
+    /// 挂起 pull 流的「建流就绪」同步点：`pullImage` 设好 `pullContinuation` 后置 true 并 resume 等待者。
+    /// 测试**必须**先 `awaitPullStreamReadyForTests()` 再主动 yield/finish/fail——否则可能在
+    /// continuation 还是 nil 时操作、流永久挂起 → `awaitCurrentTaskForTests` 冻死（本仓挂起流坑）。
+    private var pullStreamReady = false
+    private var pullReadyWaiters: [CheckedContinuation<Void, Never>] = []
+
+    /// clone create 每次收到的 `envOverride` 参数（Day 16 T9.0，codex #6）——**仅测试可见**。
+    /// 数组（非单槽 Optional）区分「没调」（空）vs「调了传 nil」（`[nil]`）；`Call.createClone`
+    /// 不记它（避免改 `Call` enum 炸既有 T6/T8 断言）。
+    public private(set) var createCloneEnvOverrides: [[EnvironmentVariable]?] = []
 
     /// 调用流水，含**失败的调用**——「试过但失败了」和「压根没试」是两码事，
     /// supervisor 的重试测试正是要区分这两个。
@@ -109,6 +145,51 @@ public actor FakeContainerRuntimeClient: ContainerRuntimeClient {
     /// 配置 `stats` 要按顺序吐出的样本。
     public func setStatsSamples(_ samples: [ContainerStatsSample]) {
         statsSamples = samples
+    }
+
+    /// 配置 `pullImage` 要按顺序 yield 的进度更新。
+    public func setPullProgress(_ updates: [PullProgress]) {
+        pullProgressUpdates = updates
+    }
+
+    /// pull 流是否在吐完初始 updates 后挂起（供 T9.2 取消/竞态测试）。见 `pullContinuation`。
+    public func setPullStreamSuspends(_ on: Bool) {
+        pullStreamSuspends = on
+    }
+
+    /// 主动向挂起的 pull 流投递一条进度（模拟后台流迟到事件）。
+    public func yieldPullProgress(_ update: PullProgress) {
+        pullContinuation?.yield(update)
+    }
+
+    /// 主动正常结束挂起的 pull 流（模拟后台拉取完成）。
+    public func finishPullStream() {
+        pullContinuation?.finish()
+        pullContinuation = nil
+    }
+
+    /// 主动以错误结束挂起的 pull 流（模拟流内失败）。
+    public func failPullStream(_ error: RuntimeError) {
+        pullContinuation?.finish(throwing: error)
+        pullContinuation = nil
+    }
+
+    /// 普通 pull 流的流内错误（yield 完以它结束）。见 `pullStreamError`。
+    public func setPullStreamError(_ error: RuntimeError?) {
+        pullStreamError = error
+    }
+
+    /// 等挂起 pull 流建流就绪（`pullContinuation` 已设）——主动 yield/finish/fail **之前**必须先等它。
+    public func awaitPullStreamReadyForTests() async {
+        if pullStreamReady { return }
+        await withCheckedContinuation { pullReadyWaiters.append($0) }
+    }
+
+    private func markPullStreamReady() {
+        pullStreamReady = true
+        let waiters = pullReadyWaiters
+        pullReadyWaiters = []
+        for waiter in waiters { waiter.resume() }
     }
 
     // MARK: - ContainerRuntimeClient
@@ -217,7 +298,117 @@ public actor FakeContainerRuntimeClient: ContainerRuntimeClient {
         images.remove(at: index)
     }
 
+    // MARK: - Day 16：创建 / 克隆 / pull / 删除容器
+
+    /// 全新创建：把容器以 **stopped** 落进内存（create 不启动它——「建后启」是两步），返回其 identity。
+    /// 注入失败在落容器**之前**抛：失败的 create 必须不留下半个容器。
+    public func create(_ spec: ContainerCreationSpec) throws(RuntimeError) -> ContainerID {
+        calls.append(.create(spec.name))
+        if let error = injected[.create] { throw error }
+
+        let id = try requireID(from: spec.name.value)
+        containers.append(
+            Container(id: id, image: spec.image, state: .stopped, environment: spec.environment)
+        )
+        return id
+    }
+
+    /// clone 预填：从源容器提 image + env，挂载摘要计数默认全 0（Fake 不建模挂载明细）。
+    public func cloneTemplate(for source: ContainerID) throws(RuntimeError) -> ContainerCloneTemplate {
+        calls.append(.cloneTemplate(source))
+        if let error = injected[.cloneTemplate] { throw error }
+
+        guard let found = containers.first(where: { $0.id == source }) else {
+            throw .containerNotFound(source)
+        }
+        return ContainerCloneTemplate(
+            image: found.image,
+            environment: found.environment,
+            mountSummary: MountSummary(volumeCount: 0, bindCount: 0, tmpfsCount: 0)
+        )
+    }
+
+    /// 以源为模板新建：复制 image；`envOverride` 非 nil 用它，否则原样克隆源 env。新容器 stopped 落库。
+    public func create(
+        clonedFrom source: ContainerID,
+        name: ContainerName,
+        envOverride: [EnvironmentVariable]?
+    ) throws(RuntimeError) -> ContainerID {
+        calls.append(.createClone(source: source, name: name))
+        createCloneEnvOverrides.append(envOverride)
+        if let error = injected[.createClone] { throw error }
+
+        guard let template = containers.first(where: { $0.id == source }) else {
+            throw .containerNotFound(source)
+        }
+        let id = try requireID(from: name.value)
+        containers.append(
+            Container(
+                id: id,
+                image: template.image,
+                state: .stopped,
+                environment: envOverride ?? template.environment
+            )
+        )
+        return id
+    }
+
+    /// pull：yield 配置好的进度后 finish（同 `followLogs` 的同步假流）。注入失败在建流阶段抛（typed）。
+    /// `pullStreamSuspends` 时改用可控 probe：吐完初始 updates 后挂起，continuation 存起来供
+    /// `yieldPullProgress`/`finishPullStream`/`failPullStream` 主动驱动（T9.0，codex #4）。
+    public func pullImage(_ reference: ImageRef) throws(RuntimeError) -> AsyncThrowingStream<PullProgress, any Error> {
+        calls.append(.pullImage(reference))
+        if let error = injected[.pullImage] { throw error }
+
+        let updates = pullProgressUpdates
+        let streamError = pullStreamError
+        guard pullStreamSuspends else {
+            return AsyncThrowingStream { continuation in
+                for update in updates {
+                    continuation.yield(update)
+                }
+                if let streamError {
+                    continuation.finish(throwing: streamError)
+                } else {
+                    continuation.finish()
+                }
+            }
+        }
+
+        pullStreamReady = false
+        let (stream, continuation) = AsyncThrowingStream.makeStream(
+            of: PullProgress.self,
+            throwing: (any Error).self
+        )
+        for update in updates {
+            continuation.yield(update)
+        }
+        pullContinuation = continuation
+        markPullStreamReady()
+        return stream
+    }
+
+    /// 删除容器：不存在 → `.containerNotFound`（不静默）；存在 → 移除。
+    public func delete(id: ContainerID) throws(RuntimeError) {
+        calls.append(.deleteContainer(id))
+        if let error = injected[.deleteContainer] { throw error }
+
+        guard let index = containers.firstIndex(where: { $0.id == id }) else {
+            throw .containerNotFound(id)
+        }
+        containers.remove(at: index)
+    }
+
     // MARK: -
+
+    /// 从名字构 `ContainerID`（create / create-clone 共用）。因 `ContainerName` 正则严于
+    /// `ContainerID`（只挡空白），实践上必成功；这条 guard 只挡「有人绕过 ContainerName 直塞空串」。
+    private func requireID(from name: String) throws(RuntimeError) -> ContainerID {
+        guard let id = ContainerID(name) else {
+            throw .operationFailed(reason: "invalid container name '\(name)'")
+        }
+        return id
+    }
 
     /// 幂等是**天然**的，不靠特判：目标状态直接赋值，已经是那个状态就等于没动。
     ///

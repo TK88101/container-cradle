@@ -82,6 +82,13 @@ struct MenuBarRootView: View {
                 Image(systemName: "arrow.clockwise")
             }
             .buttonStyle(.borderless)
+            // 不写这句，名字来自 SF Symbol 的默认描述——那串字**是 Apple 的**：它拥有、它本地化、
+            // 没有稳定性承诺。`arrow.clockwise` 恰好被译成 "Refresh"（读起来对），
+            // 而同一来源的 `chevron.down.circle` 给的是 "Go Down"（完全错）。
+            // 「这次翻得对」不是可以依赖的性质：一次系统更新改掉它，控件就静默改名，
+            // 静态守卫（无锚点）与真机判定（名字不在可疑清单里）都不会红。
+            // 顺带：ja 下那串字是 Apple 的译文，同一条 toolbar 会混着两套翻译源。
+            .accessibilityLabel(Text("Refresh"))
             .help("Refresh")
         }
         .padding(.horizontal, 12)
@@ -170,8 +177,35 @@ struct MenuBarRootView: View {
                 errorText(String(localized: "Failed to set login item: \(error)"))
             }
 
-            // M5（Day 10）：volume / image 管理入口。
-            HStack {
+            // M5（Day 10）：volume / image 管理入口。Day 16 T9.6：新建容器入口。
+            //
+            // ★ **两行不是排版偏好，是硬约束。** 这个 popover 是 `.frame(width: 320)`（:39），
+            // 减掉 12pt 水平 padding 只剩 **296pt**。三个标签平铺，en 需要 335pt
+            // （实测 99 + 114 + 106 + 两处 8pt 间距）、ja 需要 310pt——都超。
+            // SwiftUI 会把 `.borderless` 按钮的标签**静默压缩**成 `New Contain…`：
+            // 不报错、不 log、编译绿、`swift test` 不构建 app target、
+            // `check-localization.sh` 只查「有没有译文」不查「排得下吗」。
+            // Day 16（`a55ea2f`）把这一行从两个按钮加到三个时，它就这么无声地坏了。
+            //
+            // 2026-08-03 真机四语取证：en 压缩 50pt、ja 压缩 34pt（截图均见 `…` 截断），
+            // zh-Hans / zh-Hant 零压缩。拆两行后行 2 最宽 228pt（en），余 68pt。
+            //
+            // ★ **AX 几何断言抓不到这个 bug**：按钮是在**自己的 frame 内**被压缩的，
+            // `maxX` 始终 ≤ 内容区右界；`AXTitle` 又只反映逻辑标题。两者都是绿的，
+            // 只有截图目视能定罪。将来改这里，别只信几何断言。
+            //
+            // `spacing:` 显式写死：平台默认间距是语义值、不保证恒为 8pt，
+            // 而上面那些预算数字依赖它——留给默认值等于让预算失去契约基础。
+            HStack(spacing: 8) {
+                Button("New Container…") {
+                    openManagementWindow(CreateContainerWindowScene.windowID)
+                }
+                .buttonStyle(.borderless)
+
+                Spacer()
+            }
+
+            HStack(spacing: 8) {
                 Button("Manage Volumes…") {
                     openManagementWindow(VolumesWindowScene.windowID)
                 }

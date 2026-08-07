@@ -65,6 +65,10 @@ struct TypedConfirmationSheet: View {
             TextField("Type the name here", text: $typed)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(.body, design: .monospaced))
+                // 这个框是**不可恢复删除**的唯一闸门，而它不在 `Form` 里 → 无名。
+                // 上面那句「Type X to confirm」是 StaticText，读屏不会替这个框念它；
+                // 名字里带上要打的名字，用户不必来回跳读也知道该敲什么。
+                .accessibilityLabel(Text("Type \(expectedName) to confirm"))
                 .autocorrectionDisabled()
 
             HStack {

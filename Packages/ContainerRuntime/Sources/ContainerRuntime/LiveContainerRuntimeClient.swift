@@ -1,6 +1,7 @@
 import ContainerCore
 import ContainerResource
 import Foundation
+import TerminalProgress
 
 /// **真运行时。** `ContainerRuntimeClient` 的第三个实现（另两个是 Fake 与将来的 CLI 逃生舱）。
 ///
@@ -29,6 +30,17 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
     /// `defaultStopTimeoutCoversUpstreamGracePeriod`。
     public static let defaultStopTimeout: Duration = .seconds(15)
 
+    /// create 专用超时。**必须显著大于 supervisor 档 `timeout`**：`create` 经
+    /// `containerConfigFromFlags` → `ClientImage.fetch`，镜像不在本地时会触发下载，5s 必假超时
+    /// （首次用某镜像的 create 必败——「编译绿测试绿看不出异常」型）。create 是 UI 一次性动作、
+    /// **不在 supervisor reconcile 路径上**，故一个卡死也冻不住核心 supervisor——这个超时只是
+    /// 「多久告诉用户它卡了」的 UX 上界，不参与熔断/退避（无「乘出真实时间」的复合风险）。
+    /// 预填流程只提供已 pull 的镜像（§3.6 `ImageListStore` 下拉），本地装配通常几秒内完成。
+    private let createTimeout: Duration
+
+    /// 见上。默认 120s：本地镜像装配的宽裕头量。
+    public static let defaultCreateTimeout: Duration = .seconds(120)
+
     /// usage enrichment 的**全局预算**（★R3/★R4/★R5，见 `VolumeUsageCollector`）。
     /// 与 per-call `timeout` 是两个尺度：后者钉单卷，前者钉整场。
     private let usageBudget: Duration
@@ -38,14 +50,16 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
     public init(
         prober: any RuntimeProber = ApiserverProber(),
         timeout: Duration = .seconds(5),
-        stopTimeout: Duration = Self.defaultStopTimeout
+        stopTimeout: Duration = Self.defaultStopTimeout,
+        createTimeout: Duration = Self.defaultCreateTimeout
     ) {
         self.init(
             upstream: LiveUpstreamClient(),
             paths: FileSystemPathChecker(),
             prober: prober,
             timeout: timeout,
-            stopTimeout: stopTimeout
+            stopTimeout: stopTimeout,
+            createTimeout: createTimeout
         )
     }
 
@@ -56,6 +70,7 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
         prober: any RuntimeProber,
         timeout: Duration = .seconds(5),
         stopTimeout: Duration = Self.defaultStopTimeout,
+        createTimeout: Duration = Self.defaultCreateTimeout,
         usageBudget: Duration = .seconds(8)
     ) {
         self.upstream = upstream
@@ -63,6 +78,7 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
         self.errors = RuntimeErrorMapper(prober: prober)
         self.timeout = timeout
         self.stopTimeout = stopTimeout
+        self.createTimeout = createTimeout
         self.usageBudget = usageBudget
     }
 
@@ -373,7 +389,172 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
         }
     }
 
+    // MARK: - Day 16：创建 / 克隆 / pull / 删除容器
+
+    // 五能力全部落地：create（T6.1）/ pullImage（T6.2）/ delete（T6.3）/ cloneTemplate（T6.4）/
+    // create(clonedFrom:)（T6.5）。桩期的标记已全清——`RuntimeBoundaryTests.noDay16StubsRemain`
+    // 守「桩标记 0 次出现」，防哪天有人又留一个 typed-throws 桩没接线就当完成了（T6.6）。
+
+    /// 全新创建（能力 A）。判断在这一层：spec→inputs 纯映射（`CreationMapper`，已测）+ XPCTimeout +
+    /// 错误映射 + id 回映。装配与 create 的副作用捆在 `upstream.createContainer`（不可测的直线段）。
+    public func create(_ spec: ContainerCreationSpec) async throws(RuntimeError) -> ContainerID {
+        let inputs = CreationMapper.inputs(for: spec)
+
+        let rawID: String
+        do {
+            rawID = try await XPCTimeout.race(after: createTimeout) {
+                try await upstream.createContainer(inputs)
+            }
+        } catch {
+            throw await errors.map(error, containerID: nil)
+        }
+
+        // 上游无 API 稳定性承诺（R1）：回来的 id 映不回 domain → 响亮地失败，不静默。
+        guard let id = ContainerID(rawID) else {
+            throw RuntimeError.operationFailed(reason: "Upstream created a container with an unmappable id: \(rawID)")
+        }
+        return id
+    }
+
+    /// clone 预填（T6.4）：`get(source)` → `SnapshotMapper.cloneTemplate` 提 image+env+挂载摘要。
+    /// `fetch` 已管 XPCTimeout + R14 错误映射；映射失败（坏 image）→ operationFailed，不静默。
+    public func cloneTemplate(for source: ContainerID) async throws(RuntimeError) -> ContainerCloneTemplate {
+        let snapshot = try await fetch(source)
+        do {
+            return try SnapshotMapper.cloneTemplate(from: snapshot)
+        } catch {
+            throw RuntimeError.operationFailed(reason: "Clone template mapping failed: \(error)")
+        }
+    }
+
+    /// clone 提交（T6.5）：`get(source)` → **纯 `sanitizeForClone`**（§3.2 表，已测）→ create。
+    /// now 在这里现取（`Date()`）注入纯 sanitizer，保持 sanitizer 无时钟依赖、可测。
+    /// 与 fresh create 同一档 `createTimeout`（clone 也可能触发镜像补拉，off supervisor 路径）。
+    public func create(
+        clonedFrom source: ContainerID,
+        name: ContainerName,
+        envOverride: [EnvironmentVariable]?
+    ) async throws(RuntimeError) -> ContainerID {
+        let snapshot = try await fetch(source)
+        let sanitized = CreationMapper.sanitizeForClone(
+            snapshot.configuration,
+            newID: name.value,
+            envOverride: envOverride,
+            creationDate: Date()
+        )
+
+        let rawID: String
+        do {
+            rawID = try await XPCTimeout.race(after: createTimeout) {
+                try await upstream.createFromConfiguration(sanitized)
+            }
+        } catch {
+            throw await errors.map(error, containerID: nil)
+        }
+
+        // 上游无 API 稳定性承诺（R1）：回来的 id 映不回 domain → 响亮失败，不静默。
+        guard let id = ContainerID(rawID) else {
+            throw RuntimeError.operationFailed(reason: "Upstream created a clone with an unmappable id: \(rawID)")
+        }
+        return id
+    }
+
+    /// image pull（§3.3 / T6.2）。**判断在这一层**：上游反向 XPC 分批投递事件 →
+    /// `PullProgressAccumulator` 逐批喂 `PullMapper.folding`（跨批 add* 累加，T2b 回归的靶子）→
+    /// 折叠出的快照 yield 进流。错误经 R14 判定映成 domain 错误、从流里抛出。
+    ///
+    /// ## 为什么不套 blanket `XPCTimeout`
+    ///
+    /// pull 是**无界流式下载**（镜像可能几百 MB、几分钟），且**有进度作 liveness 信号**——
+    /// 一刀切超时会把正常的慢下载误杀。它又**不在 supervisor reconcile 路径上**：一次挂死冻不住
+    /// 核心 supervisor。控制走**流取消**（`onTermination → task.cancel()`），同 `followLogs` 的
+    /// 流式段一样不计时。真挂死（对端不回、也不投批）= 泄漏一个 orphan task，消费者不阻塞、UI
+    /// 停在无进度态由用户取消——「宁可泄漏一个挂死的调用，也不冻住核心」（CLAUDE.md）。
+    public func pullImage(_ reference: ImageRef) async throws(RuntimeError) -> AsyncThrowingStream<PullProgress, any Error> {
+        let upstream = self.upstream
+        let errors = self.errors
+        let rawReference = reference.rawValue
+
+        return AsyncThrowingStream(bufferingPolicy: .bufferingNewest(Self.pullProgressBufferLimit)) { continuation in
+            let task = Task {
+                let accumulator = PullProgressAccumulator()
+                do {
+                    try await upstream.pullImage(reference: rawReference) { events in
+                        continuation.yield(await accumulator.fold(events))
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: await errors.map(error, containerID: nil))
+                }
+            }
+            // 消费者取消 / 收工 → 取消底层 pull 任务（对端若不响应取消，则任务泄漏，见方法注释）。
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    /// pull 进度的缓冲上界。进度是「显示最新累积态」，落后的中间帧丢弃无害——留一小段
+    /// 只为不丢相邻的 phase 切换（Fetching→Unpacking）。
+    static let pullProgressBufferLimit = 64
+
+    /// 删除容器的确定序列（§3.4 / codex #12）。**not-found 与 runtime-down 不可混**：
+    /// 1. 前置复核（`fetch` 已按 R14 把 not-found→`.containerNotFound`、runtime-down→`.runtimeUnavailable`）。
+    /// 2. `delete(force: true)`（force 让删 running 走 server SIGKILL+cleanup）。
+    /// 3. 报错 → **仅 runtime 可达才复核**：已不存在=幂等成功；仍在=真失败；runtime 死了=原样抛
+    ///    （**绝不**把「复核失败」解读成「已删成功」——那会谎报成功）。
+    public func delete(id: ContainerID) async throws(RuntimeError) {
+        // 1. 前置复核。**存在性没确立就绝不当 absent**（codex #12）：确实不存在 → containerNotFound；
+        //    runtime down / 超时 / 映射失败等无法确定存在性的失败由 `containerExists` 原样上抛
+        //    （不谎称 not-found）。
+        guard try await containerExists(id) else {
+            throw RuntimeError.containerNotFound(id)
+        }
+
+        // 2. delete(force: true)。
+        do {
+            try await XPCTimeout.race(after: timeout) {
+                try await upstream.deleteContainer(id: id.rawValue, force: true)
+            }
+        } catch {
+            let mapped = await errors.map(error, containerID: id)
+
+            // 3. runtime 不可达 → 原样抛，不复核（复核也会失败、白跑一次 XPC；且绝不把 runtime-down
+            //    读成 not-found，codex #12）。
+            if case .runtimeUnavailable = mapped { throw mapped }
+
+            // runtime 可达 → 复核。**只有确定「已不存在」才当幂等成功**；复核本身若无法确定存在性
+            //    （超时 / 映射失败 / runtime 刚死）→ `containerExists` 抛出，这里抛回**原始 delete 错误**，
+            //    绝不因为「复核也没取到」就谎称删成功。
+            let stillExists: Bool
+            do {
+                stillExists = try await containerExists(id)
+            } catch {
+                throw mapped
+            }
+            if stillExists { throw mapped }
+            // 确认已不存在 → delete 的报错是虚惊，幂等成功。
+        }
+    }
+
     // MARK: -
+
+    /// 容器是否**确实存在**。只有确定的信号才回答：`fetch` 成功 = 存在；映射出 `.containerNotFound`
+    /// = 确实不存在。runtime 不可达 / XPC 超时 / 映射失败等**无法确定存在性**的错误一律**上抛**——
+    /// 绝不塌缩成「不存在」（codex #12 / R14）：存在性没确立就当 absent，会把失败的 delete 谎称成功、
+    /// 或把一次超时报成 not-found。穷尽 `switch`（无 default）：`RuntimeError` 加 case 时编译器强制在
+    /// 这里重新决定它算不算「确定不存在」。
+    private func containerExists(_ id: ContainerID) async throws(RuntimeError) -> Bool {
+        do {
+            _ = try await fetch(id)
+            return true
+        } catch {
+            switch error {
+            case .containerNotFound:
+                return false
+            case .runtimeUnavailable, .operationFailed, .mountSourceUnavailable:
+                throw error
+            }
+        }
+    }
 
     private func fetch(_ id: ContainerID) async throws(RuntimeError) -> ContainerSnapshot {
         do {
@@ -383,5 +564,18 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
         } catch {
             throw await errors.map(error, containerID: id)
         }
+    }
+}
+
+/// pull 进度的**跨批累积器**。`PullMapper.folding` 是纯的（每批产出一个新快照），但流式 pull
+/// 分批投递、`add*` 族要跨批累加——「当前累积态」得有地方存活到下一批。上游的 `onProgress` 是
+/// `@Sendable async` 回调，用 actor 持有 `current` 最稳：不赌调用方串行投递，也满足 `@Sendable`。
+private actor PullProgressAccumulator {
+    private var current = PullMapper.initial
+
+    /// 折叠一批事件进累积态，返回那一刻的合法快照（`PullProgress` 既是累积态又是对外快照）。
+    func fold(_ events: [ProgressUpdateEvent]) -> PullProgress {
+        current = PullMapper.folding(current, with: events)
+        return current
     }
 }

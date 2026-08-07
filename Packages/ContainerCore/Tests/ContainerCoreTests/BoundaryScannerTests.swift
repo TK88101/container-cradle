@@ -177,4 +177,166 @@ struct BoundaryScannerTests {
         let source = #"log.info("state=\(describe(state), privacy: .public)")"#
         #expect(BoundaryScanner.publicPrivacyLeaks(in: source, markers: ["privateDetail"]).isEmpty)
     }
+
+    // MARK: - D2 函数级：明文出口的行区间定位
+
+    @Test("定位到函数体的完整行区间")
+    func locatesFunctionBodyRange() {
+        let source = """
+        enum M {
+            static func serialize(_ env: [String]) -> [String] {
+                env.map { "\\($0)" }
+            }
+        }
+        """
+        let range = BoundaryScanner.lineRangeOfFunction(named: "serialize", in: source)
+        #expect(range == 2...4)
+    }
+
+    @Test("找不到该函数 → nil")
+    func returnsNilForMissingFunction() {
+        #expect(BoundaryScanner.lineRangeOfFunction(named: "missing", in: "let x = 1") == nil)
+    }
+
+    /// **这条是函数级锁存在的意义**：reveal 挪出被锁函数（进另一个 helper）时，
+    /// 文件级预算（计数=1、仍在本文件）看不见——只有「reveal 行 ∈ 该函数区间」抓得到。
+    @Test("reveal 挪出被锁函数 → 落在区间外（该红时会红）")
+    func revealMovedOutOfLockedFunctionFallsOutsideRange() throws {
+        let source = """
+        enum M {
+            static func serialize(_ env: [String]) -> [String] {
+                env.map { "\\($0)" }
+            }
+            static func leak(_ s: Secret) -> String {
+                s.reveal()
+            }
+        }
+        """
+        let range = try #require(BoundaryScanner.lineRangeOfFunction(named: "serialize", in: source))
+        let revealLine = try #require(BoundaryScanner.revealCallSites(in: source).first?.line)
+        #expect(range == 2...4)
+        #expect(revealLine == 6)
+        #expect(!range.contains(revealLine))   // 直陈不变式：reveal 落在被锁函数区间外。
+    }
+
+    // MARK: - R-SECRET2：configuration 进日志
+
+    @Test(
+        "抓得到 configuration 被送进各种 sink",
+        arguments: [
+            "logger.debug(\"cfg=\\(configuration)\")",
+            "log.error(\"\\(config.initProcess.environment)\")",
+            "print(configuration)",
+            "dump(config)",
+            "os_log(\"%@\", String(describing: ProcessConfiguration.self))",
+            "logger.info(\"\\(config)\")",
+            "log.debug(\"\\(sanitized)\")",   // clone 提交的真实明文 carrier（codex T7-review 抓的假阴）。
+        ]
+    )
+    func detectsConfigurationLogSite(source: String) {
+        #expect(BoundaryScanner.configurationLogSites(in: source).count == 1, "漏掉了 config 泄漏：\(source)")
+    }
+
+    @Test(
+        "不误报合法源码",
+        arguments: [
+            "let config = try await Self.loadSystemConfig()",
+            "return [config.build.image, config.vminit.image]",              // 有 config 无 sink
+            "try await client.create(configuration: config, kernel: kernel)", // 有 configuration: 无 sink
+            "logger.info(\"container started\")",                             // 有 sink 无 config
+            "// dump(configuration) —— 注释掉的不算",
+            "let systemConfig = try await Self.loadSystemConfig()",           // systemConfig 不是独立词 config
+        ]
+    )
+    func ignoresLegitimateConfigLines(source: String) {
+        #expect(BoundaryScanner.configurationLogSites(in: source).isEmpty, "误报了合法源码：\(source)")
+    }
+
+    // MARK: - R-HANG：上游调用未套超时
+
+    @Test("wrapper 内的上游调用 → 放行")
+    func allowsWrappedUpstreamCall() {
+        let source = """
+        func list() async throws {
+            let x = try await XPCTimeout.race(after: t) {
+                try await upstream.list()
+            }
+        }
+        """
+        let violations = BoundaryScanner.untimedUpstreamCalls(
+            in: source, wrapper: "XPCTimeout.race", exemptMethods: []
+        )
+        #expect(violations.isEmpty)
+    }
+
+    /// **这条是超时扫描存在的意义**：漏套一个 XPCTimeout（本仓库栽过的回滚路径）时它必须红。
+    @Test("裸上游调用（无 wrapper）→ 命中（该红时会红）")
+    func flagsUntimedUpstreamCall() {
+        let source = """
+        func rollback() async {
+            try? await upstream.stop(id: id)
+        }
+        """
+        let violations = BoundaryScanner.untimedUpstreamCalls(
+            in: source, wrapper: "XPCTimeout.race", exemptMethods: []
+        )
+        #expect(violations.count == 1)
+        #expect(violations.first?.line == 2)
+    }
+
+    @Test("豁免方法（流式 pull）→ 放行")
+    func exemptsStreamingMethod() {
+        let source = """
+        func pull() async {
+            try await upstream.pullImage(reference: ref) { e in }
+        }
+        """
+        let violations = BoundaryScanner.untimedUpstreamCalls(
+            in: source, wrapper: "XPCTimeout.race", exemptMethods: ["pullImage"]
+        )
+        #expect(violations.isEmpty)
+    }
+
+    @Test("upstream 别名（usageUpstream）也被覆盖")
+    func coversUpstreamAlias() {
+        let source = """
+        func collect() async {
+            try await usageUpstream.volumeUsedBytes(name: n)
+        }
+        """
+        let violations = BoundaryScanner.untimedUpstreamCalls(
+            in: source, wrapper: "XPCTimeout.race", exemptMethods: []
+        )
+        #expect(violations.count == 1)
+    }
+
+    /// codex T7-review 补的洞：原正则只认紧跟 `await` 的标识符，`self.upstream` 会漏。
+    @Test("self.upstream 限定写法也被抓（该红时会红）")
+    func coversSelfQualifiedUpstream() {
+        let source = """
+        func rollback() async {
+            try? await self.upstream.stop(id: id)
+        }
+        """
+        let violations = BoundaryScanner.untimedUpstreamCalls(
+            in: source, wrapper: "XPCTimeout.race", exemptMethods: []
+        )
+        #expect(violations.count == 1)
+        #expect(violations.first?.line == 2)
+    }
+
+    @Test("非上游的 await 调用不被误报")
+    func ignoresNonUpstreamAwaits() {
+        let source = """
+        func map() async {
+            throw await errors.map(e)
+            _ = await accumulator.fold(events)
+            _ = await collector.collect(names: n)
+        }
+        """
+        let violations = BoundaryScanner.untimedUpstreamCalls(
+            in: source, wrapper: "XPCTimeout.race", exemptMethods: []
+        )
+        #expect(violations.isEmpty)
+    }
 }

@@ -54,3 +54,36 @@
 "This volume's data cannot be recovered after deletion." = "削除後、このボリュームのデータは復元できません。";
 
 "%lld volumes" = "%lld 個のボリューム";
+
+/* ===== ContainerActionPresentation：Day 16 T9.10 で補った delete の債務 ===== */
+"Delete failed: %@" = "削除に失敗しました：%@";
+
+/* ===== ContainerCreationPresentation：フォームの入力エラー（Day 16 T9.5） ===== */
+"Enter a container name" = "コンテナ名を入力してください";
+"Container names may only contain letters, digits, dots, dashes and underscores" = "コンテナ名に使えるのは英数字とピリオド・ハイフン・アンダースコアだけです";
+"Enter an image reference, for example nginx:latest" = "イメージ参照を入力してください（例：nginx:latest）";
+"Mount path %@ must start with a slash" = "マウントパス %@ はスラッシュで始めてください";
+"Mount path %@ must not contain a colon" = "マウントパス %@ にコロンは使えません";
+"Mount path %@ is used more than once" = "マウントパス %@ が重複しています";
+"%@ is not a valid volume name" = "%@ はボリューム名として使えません";
+"An environment variable name is empty" = "環境変数名が空のままです";
+"Environment variable name %@ must not contain an equals sign" = "環境変数名 %@ に等号は使えません";
+"Environment variable %@ is set more than once" = "環境変数 %@ が重複しています";
+
+/* ===== ContainerCreationPresentation：create / clone の送信失敗 ===== */
+"A container named %@ already exists" = "%@ という名前のコンテナはすでにあります";
+"Could not check existing containers, so nothing was created: %@" = "既存のコンテナを確認できなかったため、何も作成していません：%@";
+"Create failed: %@" = "作成に失敗しました：%@";
+"Container %@ was created and kept as stopped; starting it failed: %@" = "コンテナ %1$@ は作成され、停止状態のまま残っています。起動には失敗しました：%2$@";
+"Give the clone a different name from the source container" = "クローンには元のコンテナと違う名前を付けてください";
+"Clone failed: %@" = "クローンに失敗しました：%@";
+"Could not load the source container configuration: %@" = "コピー元コンテナの設定を読み込めませんでした：%@";
+
+/* ===== ImagePullPresentation（Day 16 T9.5） ===== */
+"Could not start the pull: %@" = "取得を開始できませんでした：%@";
+"The pull was interrupted: %@" = "取得が中断されました：%@";
+"Enter an image reference to pull" = "取得するイメージ参照を入力してください";
+"Pulling %@…" = "%@ を取得しています…";
+"Stopped waiting for %@; it may still be downloading" = "%@ の待機をやめました。バックグラウンドではまだ取得中かもしれません";
+"%@ failed: %@" = "%1$@ が失敗しました：%2$@";
+"Pulled %@" = "%@ を取得しました";

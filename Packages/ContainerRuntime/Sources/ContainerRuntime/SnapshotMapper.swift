@@ -65,6 +65,39 @@ enum SnapshotMapper {
         raw.compactMap(EnvironmentVariable.init(parsing:))
     }
 
+    /// clone「以此为模板」的预填提取（T6.4）：从 `snapshot.configuration` 提 image + env + 挂载摘要计数，
+    /// 装进**纯 domain** `ContainerCloneTemplate`。**env 保持 `SecretString`、不 reveal**（D2）——
+    /// 复用 `environment(from:)`，与 list 映射同一条脱敏路径。完整 configuration 仍留桥内（codex #1）。
+    static func cloneTemplate(from snapshot: ContainerSnapshot) throws(MappingError) -> ContainerCloneTemplate {
+        let reference = snapshot.configuration.image.reference
+        guard let image = ImageRef(reference) else {
+            throw .invalidImage(containerID: snapshot.id, raw: reference)
+        }
+        return ContainerCloneTemplate(
+            image: image,
+            environment: environment(from: snapshot.configuration.initProcess.environment),
+            mountSummary: mountSummary(from: snapshot.configuration.mounts)
+        )
+    }
+
+    /// 按上游 `Filesystem.FSType` 把挂载分流成 domain 的三桶计数。**穷尽 switch 无 default**——
+    /// 上游加挂载类型 → 编译器强制在这里重新决定（R-FLAGS）。domain `MountSummary` 只有
+    /// volume/bind/tmpfs 三桶（T2a 冻结）：`.block`（块设备/磁盘镜像）罕见且表单不支持新建，
+    /// 并入 bind 计数——**宁可归错桶也要计入**，否则 total 静默漏计、UI 少报继承的挂载。
+    static func mountSummary(from mounts: [Filesystem]) -> MountSummary {
+        var volumeCount = 0
+        var bindCount = 0
+        var tmpfsCount = 0
+        for mount in mounts {
+            switch mount.type {
+            case .volume: volumeCount += 1
+            case .virtiofs, .block: bindCount += 1
+            case .tmpfs: tmpfsCount += 1
+            }
+        }
+        return MountSummary(volumeCount: volumeCount, bindCount: bindCount, tmpfsCount: tmpfsCount)
+    }
+
     enum MappingError: Error, Equatable {
         case invalidID(raw: String)
         case invalidImage(containerID: String, raw: String)

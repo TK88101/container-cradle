@@ -24,6 +24,8 @@ struct RuntimeBoundaryTests {
         "StatsMapper.swift",                 // 上游 ContainerStats → domain ContainerStatsSample（Day 9 M4）
         "VolumeMapper.swift",                // 上游 VolumeConfiguration → domain Volume（Day 10 M5）
         "ImageMapper.swift",                 // 上游 ImageDescription → domain ImageSummary（Day 10 M5）
+        "CreationMapper.swift",              // domain ContainerCreationSpec → 上游 Flags.*（Day 16 T4）
+        "PullMapper.swift",                  // 上游 ProgressUpdateEvent → domain PullProgress（Day 16 T5）
         // 注：`VolumeUsageCollector.swift` 刻意**不在**名单里——它只碰 String/UInt64，
         // 不 import 上游。哪天它想 import，这个测试就是拦它的闸。
     ]
@@ -31,6 +33,7 @@ struct RuntimeBoundaryTests {
     static let upstreamModules = [
         "ContainerAPIClient",
         "ContainerResource",
+        "TerminalProgress",   // pull 进度事件 ProgressUpdateEvent（Day 16 T5：PullMapper 唯一 import 处）
         "ContainerizationOCI",
         "ContainerizationOS",
         // `ContainerizationError` 必须单列：扫描器认的是**独立词**，
@@ -73,24 +76,158 @@ struct RuntimeBoundaryTests {
         #expect(ghosts.isEmpty, "白名单里的文件已经不存在了：\(ghosts.sorted())")
     }
 
-    /// D2：本 package 的 `Sources/` 下**不许有明文出口**。
+    /// **Day 16 T4 起：明文出口预算 = 恰好 1，且只准在 `CreationMapper.swift`。**
     ///
-    /// mapper 只负责把明文**装进** `SecretString`，从不需要把它**取出来**。
-    /// 这里出现任何 `.reveal()` 都是设计出了问题。预算恒为 0。
-    @Test("没有明文出口")
-    func noPlaintextExits() throws {
-        let exits = try Self.swiftSources().flatMap { file in
-            BoundaryScanner.revealCallSites(in: file.contents)
-                .map { "\(file.relativePath):\($0.line)" }
+    /// Day 15 前预算恒 0：mapper 只把明文**装进** `SecretString`，从不需要**取出来**。
+    /// T4 开了唯一一个口子——create/clone 必须把 env 明文交给上游 `Flags.Process.env`，
+    /// 那个 `.reveal()` 住在 `CreationMapper.serializeEnvironmentForCreate`（D2 唯一出口）。
+    /// 别处任何 `.reveal()` 都是设计出了问题。
+    ///
+    /// 这是**保绿最小档**（T4）：锁「只在 CreationMapper.swift + 计数恰为 1」。
+    /// T7 会把「恰在 `serializeEnvironmentForCreate` 函数体内」再锁死一层 + 跑突变验证
+    /// （reveal 挪出助手 → 该红时会红）。
+    static let fileAllowedToRevealPlaintext = "CreationMapper.swift"
+
+    @Test("明文出口预算恰为 1，且只在 CreationMapper")
+    func plaintextExitsStayInBudget() throws {
+        let sources = try Self.swiftSources()
+
+        let offenders = sources
+            .filter { $0.relativePath != Self.fileAllowedToRevealPlaintext }
+            .flatMap { file in
+                BoundaryScanner.revealCallSites(in: file.contents)
+                    .map { "\(file.relativePath):\($0.line)" }
+            }
+
+        #expect(
+            offenders.isEmpty,
+            """
+            `CreationMapper.swift` 之外出现了明文出口：
+            \(offenders.joined(separator: "\n"))
+
+            mapper 的职责是把明文装进 SecretString。唯一合法的取出点是
+            CreationMapper.serializeEnvironmentForCreate（create 必须把 env 明文交给上游）。
+            """
+        )
+
+        let allowedCount = sources
+            .first { $0.relativePath == Self.fileAllowedToRevealPlaintext }
+            .map { BoundaryScanner.revealCallSites(in: $0.contents).count } ?? 0
+
+        #expect(
+            allowedCount == 1,
+            """
+            CreationMapper 的明文出口预算是 1，实际 \(allowedCount)。
+            多一个 reveal 都要显式改这条预算——那一行 diff 就是这个决定的 review 记录。
+            """
+        )
+    }
+
+    /// **Day 16 T7：把明文出口从「文件级」收窄到「函数级」。**
+    ///
+    /// `plaintextExitsStayInBudget` 只锁「在 `CreationMapper.swift` + 计数=1」——文件级。
+    /// 有人把那唯一的 reveal **挪出** `serializeEnvironmentForCreate`（进同文件另一个 helper）时，
+    /// 计数仍是 1、文件仍是它——文件级锁看不见。这条把它钉到函数体内：那个 reveal 必须恰好
+    /// 落在 `serializeEnvironmentForCreate` 的行区间里。
+    ///
+    /// 突变验证（T7，已跑并记于 plan 附录 B）：把 line 128 的 `.reveal()` 挪进 `volumeArgument`
+    /// → 本测试红（reveal 行落在函数区间外），`plaintextExitsStayInBudget` 仍绿（计数没变）——
+    /// 正是函数级锁存在的意义。
+    static let functionAllowedToRevealPlaintext = "serializeEnvironmentForCreate"
+
+    @Test("唯一的明文出口恰在 serializeEnvironmentForCreate 函数体内")
+    func plaintextExitLivesInSerializeHelper() throws {
+        let mapper = try #require(
+            try Self.swiftSources().first { $0.relativePath == Self.fileAllowedToRevealPlaintext },
+            "找不到 \(Self.fileAllowedToRevealPlaintext)"
+        )
+
+        let reveals = BoundaryScanner.revealCallSites(in: mapper.contents)
+        #expect(reveals.count == 1, "明文出口不止一个：\(reveals.map(\.line))")
+
+        let range = try #require(
+            BoundaryScanner.lineRangeOfFunction(
+                named: Self.functionAllowedToRevealPlaintext, in: mapper.contents
+            ),
+            "定位不到 \(Self.functionAllowedToRevealPlaintext) 的行区间"
+        )
+
+        for reveal in reveals {
+            #expect(
+                range.contains(reveal.line),
+                """
+                明文出口在 \(Self.fileAllowedToRevealPlaintext):\(reveal.line)，
+                不在 \(Self.functionAllowedToRevealPlaintext)（\(range.lowerBound)…\(range.upperBound)）内。
+                create/clone 之外的明文取出都是设计出了问题——要么改回助手里，要么显式改这条锁。
+                """
+            )
+        }
+    }
+
+    /// ★ **R-HANG：每个上游调用都套 `XPCTimeout`，靠形状不靠记得（§3.7 / codex #15）。**
+    ///
+    /// 「每个上游调用都套 XPCTimeout」这句话写在 `LiveContainerRuntimeClient` 开头，
+    /// 而本仓库**因漏写一个**栽过（回滚路径那句 `try? await stop` 当初没套 → XPC 在回滚上不回话
+    /// 就冻住 supervisor，坑清单）。注释拦不住漏写，扫源码才行：`LiveContainerRuntimeClient.swift`
+    /// 里任何 `await upstream.<method>(` 都必须词法嵌在 `XPCTimeout.race { }` 内。
+    ///
+    /// **唯一豁免 = 流式 `pullImage`**（无界下载、以进度作 liveness、不在 reconcile 路径、控制走流取消
+    /// 而非计时）。豁免名单写死在这里 = 每加一个豁免都是一行留痕的 diff。
+    ///
+    /// 突变验证（T7，已跑并记于 plan 附录 B）：拆掉 `stop()` 回滚那句的 `XPCTimeout.race` 包裹
+    /// → 本测试立刻报出那一行。
+    static let upstreamMethodsExemptFromTimeout: Set<String> = [
+        "pullImage",   // 流式，控制走流取消（见 LiveContainerRuntimeClient.pullImage 注释）
+    ]
+
+    @Test("每个上游调用都套 XPCTimeout（唯一豁免：流式 pull）")
+    func upstreamCallsAreTimeoutBounded() throws {
+        let liveClient = try #require(
+            try Self.swiftSources().first { $0.relativePath == "LiveContainerRuntimeClient.swift" },
+            "找不到 LiveContainerRuntimeClient.swift"
+        )
+
+        let offenders = BoundaryScanner.untimedUpstreamCalls(
+            in: liveClient.contents,
+            wrapper: "XPCTimeout.race",
+            exemptMethods: Self.upstreamMethodsExemptFromTimeout
+        )
+
+        #expect(
+            offenders.isEmpty,
+            """
+            有上游调用没套 XPCTimeout（会冻住 supervisor，R-HANG）：
+            \(offenders.map { "  LiveContainerRuntimeClient.swift:\($0.line)  \($0.detail)" }.joined(separator: "\n"))
+
+            每个 `await upstream.X` 都要包在 `XPCTimeout.race { }` 里。确实要豁免（如新的流式接口），
+            去改 upstreamMethodsExemptFromTimeout——那一行 diff 就是这个决定的 review 记录。
+            """
+        )
+    }
+
+    /// ★ **R-SECRET2：clone 复用的明文 configuration 绝不进日志（第二密钥路径，codex #6）。**
+    ///
+    /// clone 复用源 `ContainerConfiguration`，其 `initProcess.environment` 是明文 `[String]`、
+    /// **不经 `SecretString`**——`plaintextExitsStayInBudget` 的 reveal 扫描**抓不到它**。
+    /// 唯一的堵法是禁止把 configuration 送进任何 log / print / dump sink。
+    ///
+    /// 突变验证（T7，已跑并记于 plan 附录 B）：在 `sanitizeForClone` 里加一句
+    /// `Self.log.debug("\(config)")` → 本测试立刻报出那一行。
+    @Test("clone 复用的 configuration 从不进日志")
+    func cloneConfigurationIsNeverLogged() throws {
+        let offenders = try Self.swiftSources().flatMap { file in
+            BoundaryScanner.configurationLogSites(in: file.contents)
+                .map { "\(file.relativePath):\($0.line)  \($0.text.trimmingCharacters(in: .whitespaces))" }
         }
 
         #expect(
-            exits.isEmpty,
+            offenders.isEmpty,
             """
-            ContainerRuntime 里出现了明文出口：
-            \(exits.joined(separator: "\n"))
+            configuration 被送进了日志 / print / dump（第二密钥路径泄漏，R-SECRET2）：
+            \(offenders.joined(separator: "\n"))
 
-            mapper 的职责是把明文装进 SecretString，不是把它取出来。
+            clone 复用的 configuration 里 env 是明文、不经 SecretString——reveal 扫描抓不到它，
+            所以它绝不能进任何 sink。要诊断就 log 具体的安全字段（id / image），别 log 整个 config。
             """
         )
     }
@@ -139,6 +276,34 @@ struct RuntimeBoundaryTests {
 
             连接不许跨越运行时的代——`container system stop` 之后它是终态失效的死连接，
             而运行时换代正是这个 App 唯一该发挥作用的时刻。每次调用现建现用。
+            """
+        )
+    }
+
+    /// ★ **Day 16 T6.6：五能力落地后，桩标记必须归零。**
+    ///
+    /// T3 先把协议 +5 桩成 typed-throws（保绿），T4-T6 逐个接线。全部接线后，桩标记
+    /// 不该再出现在 `Sources` 里。**留一个没接线的桩会编译过、仓库绿**，却在运行时对每个调用
+    /// 抛 `operationFailed`——「桩当成完成」正是长任务最容易漏的一环。扫源码钉死它。
+    @Test("Day 16 桩标记已全部拆除")
+    func noDay16StubsRemain() throws {
+        // 拆写字面量：`swiftSources()` 只扫 Sources/，本测试文件本就不在扫描范围内，
+        // 但拆开也免得全仓 grep 把这一行算进「未拆的桩」。
+        let marker = "DAY16" + "-STUB"
+
+        let offenders = try Self.swiftSources().flatMap { file in
+            file.contents
+                .split(separator: "\n", omittingEmptySubsequences: false)
+                .enumerated()
+                .filter { $0.element.contains(marker) }
+                .map { "\(file.relativePath):\($0.offset + 1)" }
+        }
+
+        #expect(
+            offenders.isEmpty,
+            """
+            还有 Day 16 的桩没拆（编译绿但运行时抛 operationFailed）：
+            \(offenders.joined(separator: "\n"))
             """
         )
     }

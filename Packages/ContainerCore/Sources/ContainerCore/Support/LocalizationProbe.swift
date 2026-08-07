@@ -55,7 +55,11 @@ public enum LocalizationProbe {
         // 测试强制路径：完整 identifier → 语言+script → 裸语言码，依次降级匹配子 bundle。
         var candidates = [locale.identifier.replacingOccurrences(of: "_", with: "-")]
         if let code = locale.language.languageCode?.identifier {
-            if let script = locale.language.script?.identifier {
+            // `.script` 有值优先用；缺失时用显式 region→script fallback，不赌 ICU
+            // likely-subtags 会自动补（隐式契约，环境/SDK 的 ICU 数据可能不补 → 静默退化）。
+            if let script = locale.language.script?.identifier
+                ?? inferredScript(languageCode: code, region: locale.language.region?.identifier)
+            {
                 candidates.append("\(code)-\(script)")
             }
             candidates.append(code)
@@ -70,6 +74,23 @@ public enum LocalizationProbe {
             return bundle
         }
         return .module
+    }
+
+    /// zh 简繁归属由 region 决定这条领域规则的显式载体（Day 15，P2-1）。
+    ///
+    /// **为什么不靠 `Locale.language.script`**：Foundation 会对 region-only 标识符
+    /// （`zh_CN`）做 likely-subtags 展开，`.script` 通常已给 `Hans`——但那是**隐式契约**，
+    /// 不同 macOS / SDK / CI 镜像的 ICU 数据可能不补。一旦不补，`languageBundle` 的
+    /// candidates 会退化成 `["zh-CN","zh"]`，无 `zh.lproj` → 静默回落源语言。显式声明
+    /// 「TW/HK/MO=繁体，其余（含 CN/SG/裸 zh）=简体」让映射 correct-by-construction。
+    ///
+    /// 非 zh 语言返回 nil（en/ja 等单 script，无需推断——YAGNI）。
+    static func inferredScript(languageCode: String, region: String?) -> String? {
+        guard languageCode == "zh" else { return nil }
+        switch region {
+        case "TW", "HK", "MO": return "Hant"
+        default: return "Hans"
+        }
     }
 }
 

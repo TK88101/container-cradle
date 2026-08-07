@@ -94,4 +94,52 @@ struct LocalizationResourceTests {
         )
         #expect(text == "2 个 volume")
     }
+
+    // MARK: - region-only zh → script 推断（P2-1，Day 15）
+
+    /// `inferredScript` 是 zh 简繁归属由 region 决定这条领域规则的显式载体——
+    /// 不依赖 Foundation `.language.script` 的 likely-subtags 自动补全（隐式契约，
+    /// 环境/SDK 的 ICU 数据可能不补）。纯函数直接喂 region 断言，不必构造
+    /// `.script == nil` 的 Locale（当前 SDK 构造不出）。
+    @Test(
+        "inferredScript：zh region 显式映射简繁；非 zh 返回 nil",
+        arguments: [
+            ("zh", "CN", "Hans"), ("zh", "SG", "Hans"),        // 简体区
+            ("zh", "TW", "Hant"), ("zh", "HK", "Hant"), ("zh", "MO", "Hant"),  // 繁体区
+            ("zh", nil, "Hans"),                                // 裸 zh → 简体默认
+            ("en", "US", nil), ("ja", nil, nil),                // 非 zh → 不推断
+        ] as [(languageCode: String, region: String?, expected: String?)]
+    )
+    func inferredScriptMapping(languageCode: String, region: String?, expected: String?) {
+        #expect(LocalizationProbe.inferredScript(languageCode: languageCode, region: region) == expected)
+    }
+
+    /// region-only zh locale 端到端解析到正确 script 的 lproj。
+    /// **断言 `bundlePath` 而非译文字形**——避简繁同形字肉眼不可分的假绿陷阱。
+    ///
+    /// **`.enabled(if:)` 防 flaky（codex Round 1 P2）**：`languageBundle` 对 `== Locale.current`
+    /// 的 locale 会走产品路径 gate 短路成 `.module`。若开发机/CI 的 `Locale.current` 恰是某 zh
+    /// locale，本组断言会因环境（而非本地化回归）假红。故 current 为 zh 时跳过——那台机器上
+    /// 产品路径本就走 `.module` + `preferredLocalizations`，本测试要守的是**非-current 强制路径**。
+    ///
+    /// **突变验证（2026-07-19，跑过）**：临时删 `languageBundle` candidates 里
+    /// `candidates.append("\(code)-\(script)")` 那行 → 本组三断言全红（退化回 `.module`，
+    /// path 不含 zh-hans/zh-hant）→ 恢复回绿。证明 `.script ?? inferredScript` 接线在守。
+    @Test(
+        "region-only zh locale 端到端解析到正确 script 的 lproj（断言 bundlePath）",
+        .enabled(
+            if: Locale.current.language.languageCode?.identifier != "zh",
+            "Locale.current 为 zh 时 languageBundle 走 .current gate 短路，端到端强制路径不可测"
+        )
+    )
+    func regionOnlyZhResolvesToScriptLproj() {
+        let cn = LocalizationProbe.languageBundle(for: Locale(identifier: "zh_CN"))
+        #expect(cn.bundlePath.lowercased().contains("zh-hans"))
+
+        let tw = LocalizationProbe.languageBundle(for: Locale(identifier: "zh_TW"))
+        #expect(tw.bundlePath.lowercased().contains("zh-hant"))
+
+        let bare = LocalizationProbe.languageBundle(for: Locale(identifier: "zh"))  // 裸 zh → 简体默认
+        #expect(bare.bundlePath.lowercased().contains("zh-hans"))
+    }
 }

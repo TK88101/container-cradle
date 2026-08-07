@@ -61,6 +61,18 @@ struct CradleOfFilthApp: App {
             ImagesWindowView(model: delegate.model)
         }
         .windowResizability(.contentSize)
+
+        // 新建容器窗口（Day 16 T9.6）——单实例：全局动作，草稿态只该有一份（B 段 §3.2）。
+        Window("New Container", id: CreateContainerWindowScene.windowID) {
+            CreateContainerWindowView(model: delegate.model)
+        }
+        .windowResizability(.contentSize)
+
+        // clone 窗口（Day 16 T9.7）——按源容器开，可同时 clone 两个不同源（同 Detail/Log/Stats）。
+        WindowGroup(id: CloneContainerWindowScene.windowID, for: ContainerID.self) { $id in
+            CloneContainerWindowHost(model: delegate.model, source: id)
+        }
+        .windowResizability(.contentSize)
     }
 }
 

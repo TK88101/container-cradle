@@ -24,6 +24,7 @@ public final class ContainerActionStore {
         case stop
         case start
         case restart
+        case delete   // Day 16 T9.4
     }
 
     /// 动作失败的形态。restart 的两段必须分开报（裁决记录 / 计划设计节）：
@@ -34,6 +35,7 @@ public final class ContainerActionStore {
         case startFailed(RuntimeError)
         case restartStopFailed(RuntimeError)
         case restartStartFailed(RuntimeError)
+        case deleteFailed(RuntimeError)   // Day 16 T9.4
     }
 
     /// 每容器最近一次失败。**按容器 keyed，和 `inFlight` 同构**——拒绝制既然是按容器
@@ -90,6 +92,16 @@ public final class ContainerActionStore {
         await run(.restart, on: id) { await self.performRestart(id: id) }
     }
 
+    /// 删除容器（Day 16 T9.4）。返回 `false` = 被拒（同容器已有动作进行中）。
+    ///
+    /// **成功信号（codex #8）**：返回 `true` 且 `error(for: id) == nil` = 删成功——B 段据此立即关详情窗，
+    /// 不依赖列表刷新（刷新可能失败 / 缓存滞后）。删成功后该 id 的 `inFlight`/`failure` 由 `run` 骨架
+    /// 自然清空（`defer` 清 inFlight、成功时 failure=nil，codex #9）——UI 删后不再查该 id 的 action 态。
+    @discardableResult
+    public func delete(id: ContainerID) async -> Bool {
+        await run(.delete, on: id) { await self.performDelete(id: id) }
+    }
+
     // do/catch 住在普通方法里，不写进闭包：闭包里的类型化 throws 推断不出
     // `RuntimeError`（退化成 `any Error`）——`ContainerListStore.load` 记过的同一条坑。
 
@@ -123,6 +135,15 @@ public final class ContainerActionStore {
             return nil
         } catch {
             return .restartStartFailed(error)
+        }
+    }
+
+    private func performDelete(id: ContainerID) async -> ActionFailure? {
+        do {
+            try await client.delete(id: id)
+            return nil
+        } catch {
+            return .deleteFailed(error)
         }
     }
 

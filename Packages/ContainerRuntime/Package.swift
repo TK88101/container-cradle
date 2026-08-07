@@ -57,6 +57,11 @@ let package = Package(
         // → `ConfigurationLoader.configurationFile(in:of:)`），后者的入参类型 `FilePath`
         // 由 `SystemPackage` 导出。exact 对不上会解析失败——响亮地失败。
         .package(url: "https://github.com/apple/swift-system.git", exact: "1.7.4"),
+
+        // 同上——swift-log 也是传递依赖的显式化（Package.resolved 已 pin 1.10.1）：
+        // T6 的 create adapter 走 CLI 同源装配 `Utility.containerConfigFromFlags(...,log:)`，
+        // 那个入参类型 `Logger` 由 `Logging` 导出。exact 对不上会解析失败——响亮地失败。
+        .package(url: "https://github.com/apple/swift-log.git", exact: "1.10.1"),
     ],
     targets: [
         .target(
@@ -68,8 +73,14 @@ let package = Package(
                 // M5（Day 10）：infra 镜像过滤的 config 加载（`ContainerSystemConfig` /
                 // `ConfigurationLoader`）。container 包自己的 product，同一个 exact pin。
                 .product(name: "ContainerPersistence", package: "container"),
+                // T5（Day 16）：pull 进度事件 `ProgressUpdateEvent` 由它导出。`PullMapper`
+                // 把 `[ProgressUpdateEvent]` 累积成 domain `PullProgress`——上游进度类型到
+                // 白名单里的 `PullMapper.swift` 为止（D1）。container 包自己的 product，同 exact pin。
+                .product(name: "TerminalProgress", package: "container"),
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "SystemPackage", package: "swift-system"),
+                // T6（Day 16）：create adapter 的 `containerConfigFromFlags(...,log:)` 要一个 `Logger`。
+                .product(name: "Logging", package: "swift-log"),
             ]
         ),
         .testTarget(
@@ -80,6 +91,8 @@ let package = Package(
                 // 自己的边界也要有人守：本 package 的爆炸半径若无人钉，
                 // 「上游类型只出现在 4 个文件」就又变回一句口号。
                 .product(name: "BoundaryScanning", package: "ContainerCore"),
+                // `PullMapperTests` 直接构造 `ProgressUpdateEvent` 喂 mapper（比录 fixture 直接）。
+                .product(name: "TerminalProgress", package: "container"),
             ],
             resources: [.copy("Fixtures")]
         ),

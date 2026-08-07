@@ -1,8 +1,11 @@
 import ContainerAPIClient
 import ContainerPersistence
 import ContainerResource
+import Containerization
 import Foundation
+import Logging
 import SystemPackage
+import TerminalProgress
 
 /// 上游 `ContainerClient` 的可替身化包装。**只在本 package 内可见。**
 ///
@@ -40,6 +43,28 @@ protocol UpstreamClient: Sendable {
     func launchInitProcess(_ snapshot: ContainerSnapshot) async throws
 
     func stop(id: String) async throws
+
+    /// create（T6）：CLI 同源装配 `Utility.containerConfigFromFlags` → `client.create`，返回新容器 id。
+    /// **全 straight-line、无判断**——spec→inputs 的映射由纯 `CreationMapper` 做（已测），
+    /// 错误映射 / XPCTimeout 在上层 `LiveContainerRuntimeClient`。这一层只把「装配 + create」捆成一步。
+    func createContainer(_ inputs: CreationMapper.CreateInputs) async throws -> String
+
+    /// pull（T6.2）：`ClientImage.pull` 的直线转发，进度经 `onProgress` **反向 XPC** 回投。
+    /// **跨批折叠/累积是判断**（T2b「字节假 0」的高发地：只数 set* 漏掉跨批 add*），它住可测的
+    /// `LiveContainerRuntimeClient`，不埋在这层。这层只把「装配 systemConfig + pull」捆成一步。
+    /// 无返回值：domain `pullImage` 要的是进度流，pull 出的 `ClientImage` 用不上，终点返回即成功。
+    func pullImage(reference: String, onProgress: @escaping ProgressUpdateHandler) async throws
+
+    /// delete（T6.3）：`ContainerClient.delete(id:force:)` 的直线转发。**force 恒 true**由上层定
+    /// （删 running 走 server SIGKILL+cleanup）。not-found / runtime-down 的**判断**——前置复核、
+    /// 报错后是否复核——全在可测的 `LiveContainerRuntimeClient`（§3.4 / codex #12），不在这层。
+    func deleteContainer(id: String, force: Bool) async throws
+
+    /// clone 提交（T6.5）：用**已 sanitize 的**源 configuration 直接 create，返回新容器 id。
+    /// **不复用 fresh 的 `containerConfigFromFlags`**——那会重装一套 `Flags.*` 并重 fetch 镜像；
+    /// clone 复用源 configuration，只需补一个 host 级 `Kernel`（与容器无关，`getDefaultKernel` 直接取）。
+    /// sanitize（判断，codex #3）在纯 `CreationMapper.sanitizeForClone`（已测），这层只装配 + create。
+    func createFromConfiguration(_ configuration: ContainerConfiguration) async throws -> String
 
     /// `fhs[0]` = stdio，`fhs[1]` = boot log（已核实源码：`ContainerClient.swift:266`）。
     /// **哪个用哪个不用，是 `LiveContainerRuntimeClient` 的事**——这一层只负责转发。
@@ -107,6 +132,9 @@ struct LiveUpstreamClient: UpstreamClient {
     /// **每次都是新的。** 见上：旧连接在运行时换代后是终态失效的死连接。
     private var client: ContainerClient { ContainerClient() }
 
+    /// create adapter 的 `containerConfigFromFlags` 要一个 `Logger`。GUI 无终端，label 只用于上游内部诊断。
+    private static let log = Logger(label: "cof.container-runtime")
+
     func list() async throws -> [ContainerSnapshot] {
         try await client.list()
     }
@@ -138,6 +166,54 @@ struct LiveUpstreamClient: UpstreamClient {
 
     func stop(id: String) async throws {
         try await client.stop(id: id)
+    }
+
+    func createContainer(_ inputs: CreationMapper.CreateInputs) async throws -> String {
+        // 整段序列共用**同一个**新建的 client（连接不跨代，见类型注释）。
+        let client = self.client
+        let systemConfig = try await Self.loadSystemConfig()
+
+        // CLI 同源装配：唯一可行路径（Kernel 无其他 public 获取途径，spike V2 已核）。
+        // progressUpdate 传空——create 是一次性建停机容器，进度是 pull 的事（T5 走另一条）。
+        let (config, kernel, initImage) = try await Utility.containerConfigFromFlags(
+            id: inputs.id,
+            image: inputs.image,
+            arguments: inputs.arguments,
+            process: inputs.process,
+            management: inputs.management,
+            resource: inputs.resource,
+            registry: inputs.registry,
+            imageFetch: inputs.imageFetch,
+            containerSystemConfig: systemConfig,
+            progressUpdate: { _ in },
+            log: Self.log
+        )
+        try await client.create(configuration: config, kernel: kernel, initImage: initImage)
+        return inputs.id
+    }
+
+    func pullImage(reference: String, onProgress: @escaping ProgressUpdateHandler) async throws {
+        // `ClientImage.pull` 自建 XPCClient（M5 同款 static func，连接不跨代由上游保证）。
+        // 需 systemConfig 做 reference 归一化 + scheme/dns 解析——与 create/infra 共用同一装载。
+        let systemConfig = try await Self.loadSystemConfig()
+        _ = try await ClientImage.pull(
+            reference: reference,
+            containerSystemConfig: systemConfig,
+            progressUpdate: onProgress
+        )
+    }
+
+    func deleteContainer(id: String, force: Bool) async throws {
+        try await client.delete(id: id, force: force)
+    }
+
+    func createFromConfiguration(_ configuration: ContainerConfiguration) async throws -> String {
+        let client = self.client
+        // host 级默认 kernel（arch 匹配、与具体容器无关）——比重跑 containerConfigFromFlags 干净得多。
+        let kernel = try await ClientKernel.getDefaultKernel(for: SystemPlatform.current)
+        // initImage: nil → 上游用默认 vminit（同 fresh 路径 `management.initImage` 默认 nil）。
+        try await client.create(configuration: configuration, kernel: kernel, initImage: nil)
+        return configuration.id
     }
 
     func logs(id: String) async throws -> [FileHandle] {
@@ -175,16 +251,21 @@ struct LiveUpstreamClient: UpstreamClient {
     }
 
     func loadedInfraImageReferences() async throws -> Set<String> {
-        // CLI 同源（`Application.loadContainerSystemConfig`）：ping 拿 **daemon 报告的**
-        // appRoot/installRoot，再读那两处 TOML。
-        //
-        // **刻意不用** `ConfigurationLoader.load()` 的零参默认（env 驱动的路径解析）：
-        // 我们是 GUI，用户自定义 root 时那些 env 不会传给我们——零参版本会去读**默认**
-        // 位置、读不到自定义 config、返回 stock 默认值，然后**自称权威**——
-        // 自定义的 vminit 就这么被暴露给删除（V3 的原样灾难）。ping 走 XPC 问 daemon，
-        // 与我们进程的 env 无关。
+        let config = try await Self.loadSystemConfig()
+        return [config.build.image, config.vminit.image]
+    }
+
+    /// 加载 daemon 报告的 `ContainerSystemConfig`。**create（T6）与 infra 过滤（M5）共用**——
+    /// 两条路都需要它，单一来源避免装配漂移。
+    ///
+    /// CLI 同源（`Application.loadContainerSystemConfig`）：ping 拿 **daemon 报告的** appRoot/installRoot，
+    /// 再读那两处 TOML。**刻意不用** `ConfigurationLoader.load()` 的零参默认（env 驱动的路径解析）：
+    /// 我们是 GUI，用户自定义 root 时那些 env 不会传给我们——零参版本会去读**默认**位置、读不到自定义
+    /// config、返回 stock 默认值，然后**自称权威**——自定义的 vminit 就这么被暴露给删除（V3 的原样灾难）。
+    /// ping 走 XPC 问 daemon，与我们进程的 env 无关。
+    private static func loadSystemConfig() async throws -> ContainerSystemConfig {
         let health = try await ClientHealthCheck.ping(timeout: .seconds(10))
-        let config: ContainerSystemConfig = try await ConfigurationLoader.load(
+        return try await ConfigurationLoader.load(
             configurationFiles: [
                 ConfigurationLoader.configurationFile(
                     in: FilePath(health.appRoot.path(percentEncoded: false)),
@@ -196,7 +277,6 @@ struct LiveUpstreamClient: UpstreamClient {
                 ),
             ]
         )
-        return [config.build.image, config.vminit.image]
     }
 
     func stockInfraImageReferences() -> Set<String> {

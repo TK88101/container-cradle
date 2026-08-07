@@ -64,6 +64,10 @@ struct LogWindowView: View {
         HStack(spacing: 10) {
             TextField("Search", text: $store.searchQuery)
                 .textFieldStyle(.roundedBorder)
+                // `TextField` 的 title 在 macOS 上是 **placeholder**，不是名称——
+                // 非空却照样无名（实测三条信道全空），而这个框不在 `Form` 里，
+                // 没有任何东西替它关联标签。名称只能显式给。
+                .accessibilityLabel(Text("Search logs"))
                 .frame(maxWidth: 220)
 
             Spacer()
@@ -72,6 +76,13 @@ struct LogWindowView: View {
                 Image(systemName: store.isPaused ? "play.fill" : "pause.fill")
             }
             .toggleStyle(.button)
+            // 名称必须随状态走：这个按钮按下去做的事是相反的两件，
+            // 一直念「暂停」会让已暂停的用户以为再按一次还是暂停。
+            // 三元写在 `Text(…)` 里面（不是 `.accessibilityLabel` 的顶层），
+            // 两支都是 `String(localized:)` 字面量 → 四语可抽取。
+            .accessibilityLabel(Text(store.isPaused
+                ? String(localized: "Resume auto-scroll")
+                : String(localized: "Pause auto-scroll")))
             .help(store.isPaused
                 ? String(localized: "Resume auto-scroll")
                 : String(localized: "Pause auto-scroll (logs keep following in the background)"))
@@ -81,6 +92,7 @@ struct LogWindowView: View {
             } label: {
                 Image(systemName: "doc.on.doc")
             }
+            .accessibilityLabel(Text("Copy all logs"))
             .help("Copy all (redacted)")
 
             Button {
@@ -88,6 +100,9 @@ struct LogWindowView: View {
             } label: {
                 Image(systemName: "trash")
             }
+            // 默认名来自 SF Symbol，是 "Trash"——描述的是图标画的东西，不是这个按钮干的事
+            // （它清的是本窗口的日志缓冲，不删任何东西）。同 `Go Down` 一类的语义错。
+            .accessibilityLabel(Text("Clear"))
             .help("Clear")
 
             Button {
@@ -95,6 +110,7 @@ struct LogWindowView: View {
             } label: {
                 Image(systemName: "arrow.clockwise")
             }
+            .accessibilityLabel(Text("Reopen"))
             .help("Reopen")
         }
         .padding(.horizontal, 12)

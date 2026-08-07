@@ -6,7 +6,7 @@ import Testing
 /// 可以把 `stop` / `start` 悬在半空的运行时——拒绝制的测试必须让第一个动作
 /// 停在 in-flight 态，才能观察「第二个动作被拒且上游计数不变」。
 /// 套路同 `VolumeListStoreTests.GatedVolumeRuntimeClient`。
-private actor GatedActionRuntimeClient: ContainerRuntimeClient {
+private actor GatedActionRuntimeClient: ContainerRuntimeClient, VolumeImageUnimplementedTestDouble {
 
     private var pendingStops: [CheckedContinuation<Void, Never>] = []
     private var pendingStarts: [CheckedContinuation<Void, Never>] = []

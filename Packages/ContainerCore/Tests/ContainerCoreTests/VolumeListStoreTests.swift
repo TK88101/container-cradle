@@ -10,7 +10,7 @@ import Testing
 /// `deleteVolume` 刻意**不** gate：resurrect 向量测的是「删除成功触发的刷新」与
 /// 「在途旧刷新」之间的竞态，不是删除本身的时机——gate 太多东西会让测试的因果链
 /// 变得难以推理，且这条路径已经被 fingerprint / targetChanged 的测试覆盖过了。
-private actor GatedVolumeRuntimeClient: ContainerRuntimeClient {
+private actor GatedVolumeRuntimeClient: ContainerRuntimeClient, VolumeImageUnimplementedTestDouble {
 
     private var pendingListVolumes: [CheckedContinuation<[Volume], Never>] = []
     private var pendingInspect: [CheckedContinuation<Volume?, Never>] = []

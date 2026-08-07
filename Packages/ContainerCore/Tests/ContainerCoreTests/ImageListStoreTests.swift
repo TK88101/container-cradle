@@ -4,7 +4,7 @@ import Testing
 
 /// 一个**可以精确控制返回时机**的 image 运行时，只用来测单飞刷新——
 /// 同 `VolumeListStoreTests` 的 `GatedVolumeRuntimeClient`。
-private actor GatedImageRuntimeClient: ContainerRuntimeClient {
+private actor GatedImageRuntimeClient: ContainerRuntimeClient, VolumeImageUnimplementedTestDouble {
 
     private var pendingListImages: [CheckedContinuation<ImageListSnapshot, Never>] = []
 
@@ -239,5 +239,125 @@ struct ImageListStoreTests {
         await store.refresh()
         store.dismissDeletionFailure()
         #expect(store.deletionFlow == .idle)
+    }
+
+    // MARK: - P2-A：禁删的**真实原因**（真值表）
+    //
+    // 每条都同时断言 reason 与 enabled 的**具体取值**。刻意不写
+    // 「`deletionEnabled == (deletionBlockReason == nil)`」——`deletionEnabled` 已经是
+    // 派生属性，那条断言恒真，零信息量（Plan §2 T2，Codex C10）。
+    //
+    // 后两条（`.failed` 携带 lastKnown 的两种权威性）此前**完全没有覆盖**：
+    // 「失败但有旧快照」正是 App 日常最长待的状态，横幅文案分派全落在这两格上。
+
+    @Test("首次加载未回（.loading）→ .stillLoading，禁删")
+    func blockReasonIsStillLoadingBeforeFirstRefresh() {
+        let store = ImageListStore(client: FakeContainerRuntimeClient(containers: []))
+
+        #expect(store.deletionBlockReason == .stillLoading)
+        #expect(!store.deletionEnabled)
+    }
+
+    @Test("加载成功且权威（.loaded）→ 无原因，可删")
+    func blockReasonIsNilWhenLoadedAuthoritative() async {
+        let img = Self.image("docker.io/library/busybox:latest")
+        let client = FakeContainerRuntimeClient(containers: [], images: [img], isInfraFilterAuthoritative: true)
+        let store = ImageListStore(client: client)
+
+        await store.refresh()
+
+        #expect(store.deletionBlockReason == nil)
+        #expect(store.deletionEnabled)
+    }
+
+    @Test("加载成功但非权威（.loaded）→ .filterNotAuthoritative，禁删")
+    func blockReasonIsFilterNotAuthoritativeWhenLoaded() async {
+        let img = Self.image("docker.io/library/busybox:latest")
+        let client = FakeContainerRuntimeClient(containers: [], images: [img], isInfraFilterAuthoritative: false)
+        let store = ImageListStore(client: client)
+
+        await store.refresh()
+
+        #expect(store.deletionBlockReason == .filterNotAuthoritative)
+        #expect(!store.deletionEnabled)
+    }
+
+    @Test("首刷就失败、一份快照都没有（.failed(_, nil)）→ .noSnapshotYet，禁删")
+    func blockReasonIsNoSnapshotYetWhenFirstRefreshFails() async {
+        let client = FakeContainerRuntimeClient(containers: [])
+        await client.inject(.runtimeUnavailable, for: .listImages)
+        let store = ImageListStore(client: client)
+
+        await store.refresh()
+
+        #expect(store.deletionBlockReason == .noSnapshotYet)
+        #expect(!store.deletionEnabled)
+    }
+
+    @Test("失败但留着权威旧快照（.failed(_, 权威)）→ 无原因，仍可删")
+    func blockReasonIsNilWhenFailedWithAuthoritativeLastKnown() async {
+        let img = Self.image("docker.io/library/busybox:latest")
+        let client = FakeContainerRuntimeClient(containers: [], images: [img], isInfraFilterAuthoritative: true)
+        let store = ImageListStore(client: client)
+
+        await store.refresh()
+        await client.inject(.runtimeUnavailable, for: .listImages)
+        await store.refresh()
+
+        guard case .failed = store.state else {
+            Issue.record("前置失败：期望 failed，实际 \(store.state)")
+            return
+        }
+        #expect(store.deletionBlockReason == nil)
+        #expect(store.deletionEnabled)
+    }
+
+    @Test("失败且旧快照非权威（.failed(_, 非权威)）→ .filterNotAuthoritative，禁删")
+    func blockReasonIsFilterNotAuthoritativeWhenFailedWithLastKnown() async {
+        let img = Self.image("docker.io/library/busybox:latest")
+        let client = FakeContainerRuntimeClient(containers: [], images: [img], isInfraFilterAuthoritative: false)
+        let store = ImageListStore(client: client)
+
+        await store.refresh()
+        await client.inject(.runtimeUnavailable, for: .listImages)
+        await store.refresh()
+
+        guard case .failed = store.state else {
+            Issue.record("前置失败：期望 failed，实际 \(store.state)")
+            return
+        }
+        #expect(store.deletionBlockReason == .filterNotAuthoritative)
+        #expect(!store.deletionEnabled)
+    }
+
+    /// 守的是：**任何上游错误一旦到达，状态就离开 `.loading`**，落到 `.failed(_, nil)`
+    /// → `.noSnapshotYet`。横幅该说的是「列表从来没加载成功过」，不是继续转圈。
+    ///
+    /// 它的增量在于**与 `blockReasonIsNoSnapshotYetWhenFirstRefreshFails`（注入
+    /// `.runtimeUnavailable`）构成差分**：两个身份不同的错误必须落进同一格——分类只看
+    /// `state` 的 case，**不嗅 `reason` 字符串**。谁哪天想给超时开小灶（「超时就继续显示
+    /// loading」），**只有这条会红**（已突变验证：给 `.failed` 加一句嗅 `"timed out"` 的分支
+    /// → 本条红、那条绿）。除此之外两条同烧同灭。
+    ///
+    /// **它守不到的（原注释宣称过，是假的）**：`listImages` 被 `XPCTimeout` 包裹这件事，
+    /// 本测试**看不见**——`deletionBlockReason` 用 `case .failed(_, let lastKnown)` 把错误值丢了，
+    /// 注入超时错误与注入任何别的错误对它完全不可分辨；且 `ContainerCore` 的 testTarget 依赖只有
+    /// `["ContainerCore", "BoundaryScanning"]`，**不依赖 `ContainerRuntime`**，原理上够不着
+    /// `XPCTimeout`。那条不变式由跨包的 `RuntimeBoundaryTests.upstreamCallsAreTimeoutBounded`
+    /// 守（扫 `LiveContainerRuntimeClient` 源码，突变验证过）。
+    @Test("上游超时 → 落 .noSnapshotYet，不停在 .stillLoading")
+    func timeoutMovesOffStillLoading() async {
+        let client = FakeContainerRuntimeClient(containers: [])
+        await client.inject(.operationFailed(reason: "XPC call timed out (5 seconds)"), for: .listImages)
+        let store = ImageListStore(client: client)
+
+        await store.refresh()
+
+        // 刻意不加 `!= .stillLoading`：它被下面这条 `== .noSnapshotYet` 逻辑蕴含
+        // （`deletionBlockReason` 是纯计算属性，两条断言之间 state 无变更），
+        // 突变检出贡献实测为 0——把 `.failed(_, nil)` 改成返回 `.stillLoading`，
+        // 下面这条照样红，且失败信息还更准（直接打印实际值）。意图在测试名里。
+        #expect(store.deletionBlockReason == .noSnapshotYet)
+        #expect(!store.deletionEnabled)
     }
 }

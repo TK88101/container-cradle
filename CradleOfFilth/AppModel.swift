@@ -29,6 +29,14 @@ final class AppModel {
     let volumes: VolumeListStore
     let images: ImageListStore
 
+    /// Day 16 T9b：新建容器的草稿 + 提交态机。常驻（B 段 §3.3）：单实例创建窗口关了再开，
+    /// 草稿不该凭空蒸发（env 例外——明文不许长寿命，`SecretString` 不可读回，关窗即清）。
+    let creationForm: ContainerCreationForm
+    let creation: ContainerCreationStore
+
+    /// Day 16 T9b：镜像 pull 态机。常驻（B 段 §3.3）：pull 可能在 sheet 关闭后仍在跑，态必须活过 UI。
+    let pull: ImagePullStore
+
     /// 日志窗口 / stats 窗口自己起 `followLogs` / `stats` 用的同一个运行时客户端
     /// （Day 9，T7/T11）。**不是新连接**——`LiveContainerRuntimeClient` 每次调用现建 XPC
     /// 连接（D-F），这里只是把 composition root 已经持有的那份引用递出去，不引入新的生命周期。
@@ -61,6 +69,15 @@ final class AppModel {
         let containerList = self.containers
         self.actions = ContainerActionStore(client: client) {
             await containerList.refresh()
+        }
+
+        // Day 16 T9b：创建族 + pull。pull 完成刷新镜像列表，同上闭包注入
+        //（`cancel()` 刻意不触发——前台放弃不承诺列表同步，见 `ImagePullStore`）。
+        self.creationForm = ContainerCreationForm()
+        self.creation = ContainerCreationStore(client: client)
+        let imageList = self.images
+        self.pull = ImagePullStore(client: client) {
+            await imageList.refresh()
         }
 
         // Day 8：唯一决定「决策去哪儿被记下来」的地方。engine 和 supervisor 共用同一个 log
