@@ -252,6 +252,161 @@ struct WhitelistUIStoreTests {
 ///
 /// CLAUDE.md 记着这一条：测试装置若把某个维度压成常数，那个维度上的 bug 就是隐形的。
 /// 先问：我固定住了什么？
+/// 移除**失效**条目（P2-③）。与 `setManaged(_:false)` 是两件事：那个保留条目，这个彻底删掉。
+///
+/// 删除不可逆，所以这里守的东西比勾选侧更紧：不能拿内存快照当全量、不能拿过期的
+/// 容器列表当判据、判定与执行之间不能有缝。
+@Suite("WhitelistUIStore.remove")
+@MainActor
+struct WhitelistRemovalTests {
+
+    private func id(_ raw: String) -> ContainerID { ContainerID(raw)! }
+
+    /// ★ 与勾选侧同一个坑：写内存快照的话，**没 load 过就删** = 拿空列表覆盖整份配置。
+    /// 这条测试故意**不调 `load()`**——内存里是空的，磁盘上有两条。
+    @Test("★ 落盘写的是「磁盘 + 这次移除」，不是内存快照")
+    func removePersistsAgainstDiskNotMemory() async {
+        let writer = FakeWhitelistWriter(entries: [
+            WhitelistEntry(id: id("ghost"), enabled: false),
+            WhitelistEntry(id: id("keep"), enabled: true),
+        ])
+        let store = WhitelistUIStore(writer: writer)
+
+        store.remove(id("ghost"))
+        await store.awaitWrites()
+
+        #expect(await writer.current == [WhitelistEntry(id: id("keep"), enabled: true)])
+    }
+
+    @Test("移除一条磁盘上不存在的 id → 无事发生，不报错")
+    func removingUnknownIsIdempotent() async {
+        let writer = FakeWhitelistWriter(entries: [WhitelistEntry(id: id("keep"), enabled: true)])
+        let store = WhitelistUIStore(writer: writer)
+        await store.load()
+
+        store.remove(id("never-existed"))
+        await store.awaitWrites()
+
+        #expect(await writer.current == [WhitelistEntry(id: id("keep"), enabled: true)])
+        #expect(store.saveError == nil)
+    }
+
+    /// 勾选与移除共用同一条写链——两条各自并发发起的话，落盘顺序不由调用顺序决定。
+    @Test("移除与勾选交替连发 → 最后落盘的是最新快照")
+    func removeAndSetManagedShareTheWriteChain() async {
+        let writer = FakeWhitelistWriter(entries: [WhitelistEntry(id: id("ghost"), enabled: false)])
+        let store = WhitelistUIStore(writer: writer)
+        await store.load()
+
+        store.setManaged(id("fresh"), true)
+        store.remove(id("ghost"))
+        await store.awaitWrites()
+
+        #expect(await writer.current == [WhitelistEntry(id: id("fresh"), enabled: true)])
+    }
+
+    /// ★★ 这条测试**记录一个已知残余风险，不是在证明安全**。
+    ///
+    /// 「读盘 → 合并 → 写」串起了本进程内的写，但**挡不住进程外的写者**：
+    /// 用户在 Finder 里手改、或第二个实例，只要写在 `entries()` 与 `replace()` 之间，
+    /// 那次新增就会被整份 replace 覆盖掉，而且悄无声息。
+    ///
+    /// 真修需要给 schema 加 revision 做 CAS（本轮明确不做，见 Plan R2）。
+    /// 在那之前，这条测试把这件事**钉住**：哪天有人以为这里已经安全了，先来读它。
+    /// 注意 `temp + rename` 只保证单次写的文件完整性，与丢失更新是两回事。
+    @Test("★ 已知残余风险：外部写者落在读与写之间 → 它的新增会被覆盖")
+    func externalWriteInsideTheWindowIsLost() async {
+        let writer = GatedWhitelistWriter(entries: [WhitelistEntry(id: id("ghost"), enabled: false)])
+        let store = WhitelistUIStore(writer: writer)
+
+        store.remove(id("ghost"))
+        await writer.waitUntilReading()
+
+        // 窗口内：别人往磁盘里加了一条。此刻我们手上的快照已经取过了，看不见它。
+        await writer.simulateExternalEdit([
+            WhitelistEntry(id: id("ghost"), enabled: false),
+            WhitelistEntry(id: id("added-elsewhere"), enabled: true),
+        ])
+        await writer.release()
+        await store.awaitWrites()
+
+        // 断言的是「确实丢了」。这不是期望的行为，是**当前的行为**。
+        #expect(await writer.current.isEmpty)
+    }
+}
+
+/// 不变式 2 的编排：**确认之后先刷新，再判定，判定与执行之间不跨 `await`**。
+@Suite("StaleWhitelistRemoval")
+@MainActor
+struct StaleWhitelistRemovalTests {
+
+    private func id(_ raw: String) -> ContainerID { ContainerID(raw)! }
+
+    /// ★ 刷新失败 ⇒ 列表不权威 ⇒ 拒绝。**一个字节都不能写。**
+    ///
+    /// 这正是运行时刚挂的那一刻：所有白名单条目看起来都成了孤儿。
+    @Test("★ 确认后刷新失败 → 拒绝移除，且完全不落盘")
+    func refusesWhenRefreshFails() async {
+        let client = FakeContainerRuntimeClient(containers: [])
+        await client.inject(.operationFailed(reason: "runtime down"), for: .list)
+        let containers = ContainerListStore(client: client)
+
+        let writer = FakeWhitelistWriter(entries: [WhitelistEntry(id: id("ghost"), enabled: false)])
+        let whitelist = WhitelistUIStore(writer: writer)
+        await whitelist.load()
+
+        let removed = await StaleWhitelistRemoval.perform(
+            id: id("ghost"), containers: containers, whitelist: whitelist
+        )
+
+        #expect(!removed)
+        #expect(await writer.saved.isEmpty)
+        #expect(await writer.current == [WhitelistEntry(id: id("ghost"), enabled: false)])
+    }
+
+    /// ★ 刷新后发现容器又回来了（被重新创建）→ 拒绝。
+    @Test("★ 容器在确认前被重新创建 → 拒绝移除")
+    func refusesWhenContainerCameBack() async {
+        let revived = Container(
+            id: id("ghost"), image: ImageRef("alpine:latest")!, state: .running, environment: []
+        )
+        let client = FakeContainerRuntimeClient(containers: [revived])
+        let containers = ContainerListStore(client: client)
+
+        let writer = FakeWhitelistWriter(entries: [WhitelistEntry(id: id("ghost"), enabled: false)])
+        let whitelist = WhitelistUIStore(writer: writer)
+        await whitelist.load()
+
+        let removed = await StaleWhitelistRemoval.perform(
+            id: id("ghost"), containers: containers, whitelist: whitelist
+        )
+
+        #expect(!removed)
+        #expect(await writer.saved.isEmpty)
+    }
+
+    @Test("刷新后仍是孤儿 → 移除并落盘")
+    func removesWhenStillOrphan() async {
+        let client = FakeContainerRuntimeClient(containers: [])
+        let containers = ContainerListStore(client: client)
+
+        let writer = FakeWhitelistWriter(entries: [
+            WhitelistEntry(id: id("ghost"), enabled: false),
+            WhitelistEntry(id: id("keep"), enabled: true),
+        ])
+        let whitelist = WhitelistUIStore(writer: writer)
+        await whitelist.load()
+
+        let removed = await StaleWhitelistRemoval.perform(
+            id: id("ghost"), containers: containers, whitelist: whitelist
+        )
+        await whitelist.awaitWrites()
+
+        #expect(removed)
+        #expect(await writer.current == [WhitelistEntry(id: id("keep"), enabled: true)])
+    }
+}
+
 actor FakeWhitelistWriter: WhitelistWriting {
 
     /// 「磁盘上现在是什么」。
@@ -412,6 +567,12 @@ actor GatedWhitelistWriter: WhitelistWriting {
         guard readCount == 0 else { return }
 
         await withCheckedContinuation { entered = $0 }
+    }
+
+    /// 进程外的写者（Finder 手改 / 第二个实例）在窗口内改了磁盘。
+    /// **只动 `current`**——我们手上那份快照是进门时取的，看不见这次改动，正是要复现的形状。
+    func simulateExternalEdit(_ entries: [WhitelistEntry]) {
+        current = entries
     }
 
     func release() {

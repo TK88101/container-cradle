@@ -68,6 +68,16 @@ check_annotated CradleOfFilth/MenuBar/SupervisorSection.swift       onForceRecon
 check_annotated CradleOfFilth/Components/TypedConfirmationSheet.swift onConfirm
 check_annotated CradleOfFilth/Components/TypedConfirmationSheet.swift onCancel
 check_annotated Packages/ContainerCore/Sources/ContainerCore/Stores/LogWindowStore.swift currentGeneration
+check_annotated CradleOfFilth/MenuBar/StaleWhitelistSection.swift   onRemove
+
+# ★★ 这份清单是**硬编码**的：新增一个跨 UI 边界的回调属性，必须手动加进来，
+#    否则它的标注被将来某次重构删掉时**没有任何东西会喊**——而丢标注是完全静默的
+#    （零警告、零错误、全部测试绿，Day 18 实测过）。
+#    `onRemove` 就是活证据：它是 Day 19 新增的，本该一并加在这里，直到发版前跑闸门
+#    才发现漏了——**守卫只守它知道的那些**。
+#    → 「靠记得」是这份守卫已知的洞。自动发现要 AST 分析，codex 已论证成本不成比例
+#      （R2：为几个已知属性建 SwiftSyntax 工具不划算），所以洞留着，但**写在这里让人看见**。
+#      加新回调时请连同这段注释一起读。
 
 echo
 echo "== 2. F6 结构守卫：禁止会让 Swift 6.3.3 IRGen 崩溃的写法 =="

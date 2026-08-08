@@ -32,6 +32,8 @@ struct MenuBarRootView: View {
 
             content
 
+            staleWhitelist
+
             Divider()
 
             footer
@@ -144,6 +146,25 @@ struct MenuBarRootView: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    /// 白名单里那些容器已经不存在的条目。**判定住在 core**（`WhitelistOrphanPolicy`，
+    /// 那儿有守着两条不变式的测试），view 只负责画——运行时不可信时它返回空集，
+    /// 于是这一块整个不出现。
+    private var staleWhitelist: some View {
+        StaleWhitelistSection(
+            entries: WhitelistOrphanPolicy.orphans(
+                entries: model.whitelist.entries,
+                listState: model.containers.state
+            ),
+            onRemove: { id in
+                // 校验也在 core：`perform` 先刷新再判定，判定与写入之间不跨 await。
+                // 这里只把意图递过去——view 里不许有「现在还能不能删」的判断。
+                Task { await StaleWhitelistRemoval.perform(
+                    id: id, containers: model.containers, whitelist: model.whitelist
+                ) }
+            }
+        )
     }
 
     private var emptyState: some View {

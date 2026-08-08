@@ -103,7 +103,33 @@ public final class WhitelistUIStore {
         mutations += 1
         entries = Self.updated(entries, id: id, managed: managed)
 
-        persist(id: id, managed: managed)
+        persist { Self.updated($0, id: id, managed: managed) }
+    }
+
+    /// 把一条**彻底**移出白名单。
+    ///
+    /// ## 它和 `setManaged(_:false)` 是两件事
+    ///
+    /// 取消受管保留条目（类型文档第 1 条：调试时临时关掉，配置不能跟着蒸发）。
+    /// 而当那个容器**已经不存在了**，条目就再没有恢复的一天——它只会一直躺在配置里，
+    /// 且在界面上根本看不见（勾选框按容器列表渲染，容器没了就没有那一行）。
+    /// 这个方法是它唯一的出口，替代「去 Finder 手改 JSON」。
+    ///
+    /// ## 为什么这条路先 `reload()`，而 `setManaged` 不用
+    ///
+    /// 勾错了可以再点一次；**删错了那条配置就没了**。多一次读盘换掉「拿过期缓存做删除」
+    /// 的可能性，这个价钱很便宜。
+    ///
+    /// ## 调用前必须先证明它还是孤儿
+    ///
+    /// 本方法**不做**校验——判据在 `WhitelistOrphanPolicy.canRemove`，编排在
+    /// `StaleWhitelistRemoval.perform`（先刷新再判定，且判定与调用之间不跨 `await`）。
+    /// 直接调它等于绕过那道门。
+    public func remove(_ id: ContainerID) {
+        mutations += 1
+        entries = Self.removed(entries, id: id)
+
+        persist(reloadingFirst: true) { Self.removed($0, id: id) }
     }
 
     /// 等写入链排空。
@@ -139,6 +165,12 @@ public final class WhitelistUIStore {
         return entries + [WhitelistEntry(id: id, enabled: true)]
     }
 
+    /// 纯函数，与 `updated` 并列：**不就地改数组**（全局 §7）。
+    /// 移除一个不存在的 id 是 no-op——幂等，因为写链上可能已经有一次同样的移除在途。
+    static func removed(_ entries: [WhitelistEntry], id: ContainerID) -> [WhitelistEntry] {
+        entries.filter { $0.id != id }
+    }
+
     /// ★★ **落盘写的是「磁盘 + 这一次改动」，不是「内存里那份 entries」。**
     ///
     /// 写内存快照的话，任何一次**在首次 `load()` 完成之前**发生的勾选，都会拿一个空列表
@@ -151,7 +183,16 @@ public final class WhitelistUIStore {
     ///
     /// 现在这个形状里，「洗空」**写不出来**——落盘前一定会先看一眼磁盘上有什么。
     /// （代价：每次勾选多一次读。那是个几百字节的本地 JSON，而且读的是 store 的缓存。）
-    private func persist(id: ContainerID, managed: Bool) {
+    ///
+    /// `transform` 是「这一次改动」，作用在**刚读回来的磁盘内容**上。参数化它是为了让
+    /// `setManaged` 与 `remove` 共用同一条写链——两条各写一份链式逻辑，迟早会漂出
+    /// 「一条守了顺序、另一条没守」，而那种漂在测试里是看不见的。
+    ///
+    /// `reloadingFirst` 只有 `remove` 会传 true：删除不可逆，值得多一次读盘。
+    private func persist(
+        reloadingFirst: Bool = false,
+        _ transform: @escaping ([WhitelistEntry]) -> [WhitelistEntry]
+    ) {
         let previous = writeChain
         let token = mutations
 
@@ -161,8 +202,10 @@ public final class WhitelistUIStore {
             _ = await previous?.value
 
             do {
+                if reloadingFirst { await writer.reload() }
+
                 let onDisk = await writer.entries()
-                let merged = Self.updated(onDisk, id: id, managed: managed)
+                let merged = transform(onDisk)
 
                 try await writer.replace(with: merged)
 

@@ -537,6 +537,27 @@
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "重新整理失敗——顯示的是最後一次成功的清單" } }
       }
     },
+    "Remove" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "削除" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "移除" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "移除" } }
+      }
+    },
+    "Remove %@ from the whitelist" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ をホワイトリストから削除" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "把 %@ 从白名单移除" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "把 %@ 從白名單移除" } }
+      }
+    },
+    "Remove %@ from the whitelist?" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ をホワイトリストから削除しますか？" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "要把 %@ 从白名单移除吗？" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "要把 %@ 從白名單移除嗎？" } }
+      }
+    },
     "Remove this row" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "この行を削除" } },
@@ -607,6 +628,13 @@
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "來源容器" } }
       }
     },
+    "Stale whitelist entries" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "無効なホワイトリスト項目" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "失效的白名单条目" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "失效的白名單項目" } }
+      }
+    },
     "Start" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "起動" } },
@@ -649,6 +677,13 @@
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "將刪除該容器及其可寫層。Volume 資料不受影響。" } }
       }
     },
+    "The container is gone. Removing the entry only edits your whitelist." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コンテナ自体はもうありません。項目を削除しても、変わるのはホワイトリストだけです。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "容器本身已经没了。移除条目只会改动你的白名单。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "容器本身已經沒了。移除項目只會改動你的白名單。" } }
+      }
+    },
     "The container runtime is not running" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "コンテナランタイムが実行されていません" } },
@@ -668,6 +703,13 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "ランタイムの世代が変わりました。ログストリームが古い可能性があります · 再オープン" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "运行时已换代，日志流可能已过期 · 重新打开" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "執行階段已換代，日誌串流可能已過期 · 重新開啟" } }
+      }
+    },
+    "These containers no longer exist, so they will never start." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "これらのコンテナはもう存在しないため、起動されることはありません。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这些容器已经不存在，永远不会被启动。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這些容器已經不存在，永遠不會被啟動。" } }
       }
     },
     "This action cannot be undone. Type %@ to confirm." : {

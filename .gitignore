@@ -22,3 +22,6 @@ Packages/*/.build/
 *.dmg
 *.zip
 ExportOptions.plist
+
+# Spike 运行产物（run.sh 每次重建；编译器崩溃日志没有留档价值）
+Spikes/*/out/
