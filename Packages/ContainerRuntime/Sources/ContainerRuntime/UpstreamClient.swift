@@ -198,6 +198,7 @@ struct LiveUpstreamClient: UpstreamClient {
         let systemConfig = try await Self.loadSystemConfig()
         _ = try await ClientImage.pull(
             reference: reference,
+            scheme: CreationMapper.registryScheme,
             containerSystemConfig: systemConfig,
             progressUpdate: onProgress
         )

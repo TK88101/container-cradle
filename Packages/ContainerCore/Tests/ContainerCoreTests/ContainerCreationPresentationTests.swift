@@ -28,6 +28,7 @@ struct ContainerCreationPresentationTests {
         [
             .name(.empty),
             .name(.invalidFormat),
+            .name(.tooLong),
             .image,
             .spec(.volumeMountPathNotAbsolute("data")),
             .spec(.volumeMountPathContainsColon("/a:b")),
@@ -48,6 +49,13 @@ struct ContainerCreationPresentationTests {
 
     @Test("FieldError：带参数的 case 文案里含那个参数（用户要知道是哪一行错了）")
     func fieldErrorsNameTheOffendingValue() {
+        // 上限由 `ContainerName.maxLength` 插值，文案里必须真的带出这个数字（写死的 63 会随上游漂移而静默失真）。
+        for locale in [en, zh] {
+            #expect(
+                ContainerCreationPresentation.message(for: .name(.tooLong), locale: locale)
+                    .contains(String(ContainerName.maxLength))
+            )
+        }
         #expect(
             ContainerCreationPresentation.message(for: .spec(.duplicateVolumeMountPath("/data")), locale: en)
                 .contains("/data")

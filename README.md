@@ -37,8 +37,9 @@ logs, stats, volume/image management — is convenience on top.
 ## Requirements
 
 - macOS 15+ on Apple Silicon
-- [apple/container](https://github.com/apple/container) 1.1.0 installed and initialized
-- Xcode 16+ (only if building from source)
+- [apple/container](https://github.com/apple/container) 1.4.1 installed and initialized
+  (the app is built against the 1.4.1 client; other runtime versions are untested)
+- Xcode 27+ (only if building from source)
 
 ## Install
 
@@ -74,8 +75,23 @@ Same distribution model as Docker Desktop / OrbStack / Podman Desktop.
   plaintext requires an explicit `.reveal()` call, and a source-level boundary
   test budget counts every such call.
 - No third-party crash reporting or telemetry. Nothing leaves your machine.
-- Upstream dependency is pinned (`exact: 1.1.0`) and isolated behind an
-  anti-corruption layer (4 files); the core package cannot even import it.
+- Upstream dependency is pinned (`exact: 1.4.1`) and isolated behind an
+  anti-corruption layer (a small, test-enforced allowlist of files); the core
+  package cannot even import it.
+
+## Known limitations
+
+- **Registries must speak HTTPS.** Image pulls and container creation always
+  use HTTPS. apple/container 1.3.0 removed the `auto` scheme that used to fall
+  back to plain HTTP for localhost, private IPs and the internal DNS domain,
+  and this app deliberately does not re-implement that downgrade.
+  To use an HTTP-only registry, pull with the CLI first, then create the
+  container in the app using **the same image reference and platform** — the
+  app reuses the local image instead of fetching it again:
+
+  ```sh
+  container image pull --scheme http <registry>/<image>:<tag>
+  ```
 
 ## License
 

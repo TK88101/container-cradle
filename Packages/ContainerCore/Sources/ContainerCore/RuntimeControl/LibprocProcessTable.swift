@@ -7,6 +7,10 @@ import Darwin
 /// 「哪个进程是 apiserver」的全部判断力在 `ApiserverProber` 里，那儿是纯函数，100% 可测。
 /// 每往这个文件里加一行 `if`，就有一行代码永远没有测试守着。
 ///
+/// **唯一的例外是 `decodePath(_:)`**（v0.3.3）：把 C 缓冲区截断并解码成路径。它是纯函数，
+/// 不碰 libproc，每条分支都由 `LibprocPathDecodingTests` 覆盖。上面那条纪律要守的是
+/// 「这里不能有没人守着的判断」，这个例外并不违反它。
+///
 /// ## 为什么可以直接用 Swift，不需要 C shim
 ///
 /// spike 实测：`proc_listallpids` / `proc_pidpath` / `proc_pidinfo` 在 `import Darwin` 下
@@ -66,7 +70,13 @@ public struct LibprocProcessTable: ProcessTable {
     /// 或者我们没权限读它（系统进程）。那是常态。为一条读不到的无关进程让整次探测失败，
     /// supervisor 当场变瞎——而它瞎掉的时候，看起来和「一切正常」一模一样。
     private func record(for pid: pid_t) -> ProcessRecord? {
-        var pathBuffer = [CChar](repeating: 0, count: Self.maxPathSize)
+        // 多申请 1 个字节当哨兵：只把 `maxPathSize` 告诉内核（再大 libproc 就返回 EOVERFLOW），
+        // 最后这一格内核写不到，永远是 0，于是缓冲区里**在结构上**一定有 NUL。
+        // 它守的主要不是下面的 `decodePath`（那是全函数），而是 libproc 自己：`proc_pidpath`
+        // 在系统调用返回后会先对这块缓冲区做一次 `strlen`（xnu `libsyscall/wrappers/libproc/libproc.c`）。
+        // 内核万一写满而不留 NUL，越界读就发生在那一层，Swift 这边来不及拦。
+        // 本机实测内核总会留 NUL，所以删掉它**没有任何测试会变红**——别当冗余删。
+        var pathBuffer = [UInt8](repeating: 0, count: Self.maxPathSize + 1)
         guard proc_pidpath(pid, &pathBuffer, UInt32(Self.maxPathSize)) > 0 else { return nil }
 
         var info = proc_bsdinfo()
@@ -75,8 +85,21 @@ public struct LibprocProcessTable: ProcessTable {
 
         return ProcessRecord(
             pid: pid,
-            executablePath: String(cString: pathBuffer),
+            executablePath: Self.decodePath(pathBuffer),
             startTime: UInt64(info.pbi_start_tvsec) * 1_000_000 + UInt64(info.pbi_start_tvusec)
         )
+    }
+
+    /// `proc_pidpath` 写回的 C 缓冲区 → 路径字符串。
+    ///
+    /// 语义**逐字对齐** Swift 6 已弃用的 `String(cString: [CChar])`（stdlib 源码：先 `firstIndex(of: 0)`，
+    /// 再 `_fromUTF8Repairing`）：
+    /// ① 截断在**第一个** NUL——内核写回的是整块缓冲区，第一个 NUL 后面还跟着路径后缀的残留副本；
+    /// ② 非法 UTF-8 修成 U+FFFD，不丢字节，也不失败。
+    /// 唯一的分歧：没有 NUL 时，旧实现会 trap，这里解码整块。生产路径有上面的哨兵，走不到这一支；
+    /// 保留它只是为了让这个函数在全部输入上都有定义。
+    static func decodePath(_ buffer: [UInt8]) -> String {
+        let end = buffer.firstIndex(of: 0) ?? buffer.endIndex
+        return String(decoding: buffer[..<end], as: UTF8.self)
     }
 }

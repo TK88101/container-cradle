@@ -46,16 +46,25 @@ public enum SupervisorPresentation {
     /// 菜单栏图标。**熔断必须看得出来**——熔断意味着 supervisor 从此不干活了，
     /// 而它不干活的样子和一切正常一模一样（`SupervisorNotice.circuitOpened` 的文档）。
     /// SF Symbol 名是标识符不是文案，**不本地化**。
+    ///
+    /// ★ 这里的每个名字**必须在 SF Symbols 目录里真实存在**，由
+    /// `SupervisorSymbolValidityTests` 守。v0.3.2 栽过：`shippingbox.badge.xmark`
+    /// 与 `shippingbox.badge.plus` 这两个 `badge` 变体**不存在**（`shippingbox` 整族都没有
+    /// `.badge.*` / `.slash`），SwiftUI 对不存在的符号不报错、不 log，直接渲染成空白——
+    /// 5 个状态里 3 个从菜单栏上消失，而那 3 个恰好是这个 App 唯一有存在意义的时刻。
+    /// 改动这个 switch 后**跑一次那条测试**，别靠肉眼觉得名字合理。
     public static func symbol(for state: SupervisorState) -> String {
         switch state {
-        case .unknown, .runtimeUp:
+        // ★ down 与 up **故意相同**（2026-08-21，用户拍板）。
+        // 一度让 up=实心 / down=线框，好处是不点开也知道运行时在不在；
+        // 代价是图标随状态来回变形，用户明确不要——菜单栏上就该一直是那个线框方盒。
+        // 于是「运行时在不在」只在 popover 里说。**别把它当 bug 改回去**：
+        // `SupervisorPresentationTests` 里对应的断言是被一起拿掉的，不是漏写的。
+        case .unknown, .runtimeUp, .runtimeDown:
             "shippingbox"
 
-        case .runtimeDown:
-            "shippingbox.badge.xmark"         // 运行时不在，列表是旧的
-
         case .reconciling, .cooldown:
-            "shippingbox.badge.plus"          // 正在 / 即将拉起
+            "arrow.triangle.2.circlepath"     // 正在 / 即将拉起
 
         case .circuitOpen:
             "exclamationmark.triangle.fill"   // 停手了。必须刺眼。

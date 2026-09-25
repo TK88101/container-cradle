@@ -5,8 +5,8 @@ import Testing
 /// T1（Day 16）：`ContainerName` / `VolumeMount` / `ContainerCreationSpec` 的校验矩阵。
 ///
 /// 校验单点归 domain 类型（非 UI 拦）——非法值构造不出来（坑清单「边界值绕过硬约束」）。
-/// `ContainerName` 的正则**逐字镜像上游** `Utility.validEntityName`
-/// (`^[a-zA-Z0-9][a-zA-Z0-9_.-]+$`，已核 Utility.swift:60)：既不严于上游（否则拒掉上游认可的名，
+/// `ContainerName` **逐字镜像上游** `ManagedContainer.nameValid`（1.4.1：`count <= 63` +
+/// `^[a-zA-Z0-9][a-zA-Z0-9_.-]+$`；与上游的逐样本对照在 ContainerRuntime 的 `ContainerNameParityTests`）：既不严于上游（否则拒掉上游认可的名，
 /// 同 `ContainerID` 的纪律），也不松于上游（否则把上游必拒的名放到 create 才炸，错得更晚更糊）。
 @Suite("ContainerCreationSpec 校验矩阵")
 struct ContainerCreationSpecTests {
@@ -14,7 +14,7 @@ struct ContainerCreationSpecTests {
     // 合成 env 值，非真实密钥。
     static let secretValue = "sk-Ab3dEf6hIj9lMn2pQr5tUv8xYz1cDe4fGh7jKl0mNo="
 
-    // MARK: - ContainerName（镜像上游 validEntityName）
+    // MARK: - ContainerName（镜像上游 ManagedContainer.nameValid）
 
     @Test("合法名放行", arguments: [
         "ab",                  // 最短合法：两字符
@@ -63,6 +63,29 @@ struct ContainerCreationSpecTests {
     func rejectsIllegalCharacters(raw: String) {
         #expect(throws: ContainerNameError.invalidFormat) {
             try ContainerName(raw)
+        }
+    }
+
+    /// 上游 1.4.1 起 `ManagedContainer.nameValid` 加了 `name.count <= 63`（DNS label 上限）。
+    /// 63 是最长合法名；64 起上游必拒——早拒，且报「太长」而不是「字符非法」（64 个字母数字并无非法字符）。
+    @Test("63 字符放行（上游上限）")
+    func acceptsNameAtLengthLimit() throws {
+        let raw = String(repeating: "a", count: 63)
+        #expect(try ContainerName(raw).value == raw)
+    }
+
+    @Test("超过 63 字符抛 .tooLong（即使字符全部合法）", arguments: [64, 65, 200])
+    func rejectsNamesOverLengthLimit(count: Int) {
+        #expect(throws: ContainerNameError.tooLong) {
+            try ContainerName(String(repeating: "a", count: count))
+        }
+    }
+
+    /// 判定顺序固定：长度在前。超长且含非法字符 → `.tooLong`，文案不随输入细节跳变。
+    @Test("超长且含非法字符 → .tooLong（长度判定在前）")
+    func lengthCheckPrecedesFormatCheck() {
+        #expect(throws: ContainerNameError.tooLong) {
+            try ContainerName(String(repeating: "a", count: 63) + "/")
         }
     }
 

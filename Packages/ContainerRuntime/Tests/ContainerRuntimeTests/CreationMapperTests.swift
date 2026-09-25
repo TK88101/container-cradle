@@ -107,9 +107,34 @@ struct CreationMapperTests {
         #expect(inputs.process.env.isEmpty)
     }
 
+    // MARK: - registry scheme（守上游语义，不守字面值）
+
+    /// 1.3.0 删了 `auto`（#2099）：`"auto"` 仍能编译进 `Flags.Registry`，却在 create 里被上游
+    /// `Utility.containerConfigFromFlags` 的 `try RequestScheme(registry.scheme)` 拒掉——create 100% 失败、
+    /// 而旧断言 `== "auto"` 照绿。所以断言「上游解析器收不收」，上游再删一个 scheme 这里就红。
+    @Test("registry scheme 被上游 RequestScheme 接受，且是 https（HTTP registry 不支持，见 README）")
+    func registrySchemeIsAcceptedByUpstream() throws {
+        let inputs = CreationMapper.inputs(for: try makeSpec())
+
+        #expect(throws: Never.self) { try RequestScheme(inputs.registry.scheme) }
+        #expect(inputs.registry.scheme == "https")
+    }
+
+    /// 1.4.1 新增的安全路径字段传 `[]`，意图是「运行时默认原样」。那句话写在 mapper 的注释里——
+    /// 这里让上游 `Parser` 亲口确认：`[]` 解析成 `nil`（= 不覆盖默认），而不是空列表（= 清空默认）。
+    /// kernelArgs 被上游逐个 append 到内核命令行，空＝什么都不加。
+    @Test("maskedPaths/readonlyPaths 经上游 Parser 解析为 nil（运行时默认不被覆盖）；kernelArgs 为空")
+    func securityPathsKeepRuntimeDefaults() throws {
+        let management = CreationMapper.inputs(for: try makeSpec()).management
+
+        #expect(try Parser.maskedPaths(management.maskedPaths) == nil)
+        #expect(try Parser.readonlyPaths(management.readonlyPaths) == nil)
+        #expect(management.kernelArgs.isEmpty)
+    }
+
     // MARK: - Flags 默认值（全字段 init 的固定档）
 
-    @Test("arch = 宿主架构；memory/cpu 不设（上游填默认 ≥200 MiB）；registry=auto")
+    @Test("arch = 宿主架构；memory/cpu 不设（上游填默认 ≥200 MiB）")
     func managementUsesHostArchitectureAndDefaults() throws {
         let inputs = CreationMapper.inputs(for: try makeSpec())
 
@@ -117,7 +142,6 @@ struct CreationMapperTests {
         #expect(inputs.management.os == "linux")
         #expect(inputs.resource.memory == nil)
         #expect(inputs.resource.cpus == nil)
-        #expect(inputs.registry.scheme == "auto")
         // clone/网络/端口是别的能力或 non-goal，fresh 一律空。
         #expect(inputs.management.networks.isEmpty)
         #expect(inputs.management.publishPorts.isEmpty)

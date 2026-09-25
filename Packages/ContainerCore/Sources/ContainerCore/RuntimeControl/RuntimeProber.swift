@@ -13,8 +13,9 @@ public protocol RuntimeProber: Sendable {
 
 /// 在进程表里找 apiserver。**全部判断力集中在这里，而这里是纯函数。**
 ///
-/// libproc 那一侧（`LibprocProcessTable`）一个 `if` 都没有，所以「探测判错」这件事
-/// 只可能发生在下面这十几行里——而它们 100% 被单测覆盖。
+/// libproc 那一侧（`LibprocProcessTable`）只有一处判断：`decodePath` 把 C 缓冲区截成路径
+/// （v0.3.3，纯函数，被单测覆盖）。万一截错了，下面「路径完全相等」的匹配会静默落空。
+/// 所以排查探测判错时，除了这里的十几行（100% 被单测覆盖），也要去那儿看一眼。
 public struct ApiserverProber: RuntimeProber {
 
     /// apiserver 的安装位置（实测：`launchctl list` 里 `com.apple.container.apiserver` → pid 37850，

@@ -25,6 +25,15 @@ import Foundation
 /// `plaintextExitsStayInBudget` 钉死预算＝1（该扫描按字面计数，注释里别再写带点的调用形态）。
 enum CreationMapper {
 
+    /// registry 传输协议的**唯一**策略点：create（`Flags.Registry`）与 pull（`ClientImage.pull`）都引用它。
+    ///
+    /// 1.3.0 删了 `auto`（按 host 把 localhost/私网/内部 DNS 降级成 HTTP，#2099）；1.4.1 只认 http/https。
+    /// 不在这里重实现那段 host 判定——上游有意删掉的自动降级就是 MITM 面，而 App 与官方 CLI 同级、
+    /// CLI 默认也是 https。代价：HTTP-only registry 不能经 App 拉取（README 写了 CLI 绕行法）。
+    /// pull 也**显式**传它，不吃上游默认值：1.4.1 把 `ClientImage.pull` 的默认从 `.auto` 静默改成 `.https`，
+    /// 靠默认值等于把行为交给下一次上游改默认。
+    static let registryScheme: RequestScheme = .https
+
     /// `Utility.containerConfigFromFlags` 的**纯**入参集合——运行时依赖
     /// （`containerSystemConfig` / `progressUpdate` / `log`）不在此，由 adapter 现场提供。
     ///
@@ -58,7 +67,7 @@ enum CreationMapper {
         )
         // memory nil → 上游填默认（≥200 MiB），同 `container create` 不带 -m（non-goal：不暴露限额）。
         let resource = Flags.Resource(cpus: nil, memory: nil)
-        let registry = Flags.Registry(scheme: "auto")
+        let registry = Flags.Registry(scheme: registryScheme.rawValue)
         let imageFetch = Flags.ImageFetch(maxConcurrentDownloads: 3)
         let dns = Flags.DNS(domain: nil, nameservers: [], options: [], searchDomains: [])
         // ★ 全字段 init（见类型文档「V2 真机教训」）：空 init 会让 dns 未初始化 → 读它 fatal。
@@ -73,7 +82,10 @@ enum CreationMapper {
             entrypoint: nil,
             initImage: nil,
             kernel: nil,
+            kernelArgs: [],
             labels: [],
+            // 1.4.1 新增的 masked/readonly/kernelArgs：空＝在运行时默认之外不追加（上游 `Parser.maskedPaths([])` → nil）。
+            maskedPaths: [],
             mounts: [],
             // id 走 containerConfigFromFlags(id:) 参数，不走 --name（避免双写歧义）。
             name: nil,
@@ -83,6 +95,7 @@ enum CreationMapper {
             publishPorts: [],
             publishSockets: [],
             readOnly: false,
+            readonlyPaths: [],
             remove: false,
             rosetta: false,
             runtime: nil,

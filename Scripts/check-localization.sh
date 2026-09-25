@@ -93,8 +93,19 @@ done
 
 if [ "${1:-}" = "--built" ]; then
   echo "== 5. 已构建 app bundle 的四语 lproj（--built） =="
-  APP=$(find "$HOME/Library/Developer/Xcode/DerivedData" -path "*Build/Products/Debug/*.app" -maxdepth 8 -type d 2>/dev/null | grep -iv Index.noindex | head -1)
-  if [ -z "$APP" ]; then echo "  未找到已构建 app（先 xcodebuild build）"; fail=1; else
+  # ★ 产物路径问 Xcode 本项目的 build settings，不在 DerivedData 里猜。
+  #   原实现 `find DerivedData … | head -1` 取「目录顺序第一个 .app」——DerivedData 是全机共享的，
+  #   别的项目一构建顺序就变，实测选中过另一个项目的 app → 四语全 MISSING 的假红（2026-09-25）。
+  #   且它从不打印查的是谁，于是假红看起来和真漏译一模一样。→ 路径权威 + 打印出来。
+  SETTINGS=$(xcodebuild -project "$ROOT/CradleOfFilth.xcodeproj" -scheme CradleOfFilth \
+    -configuration Debug -showBuildSettings 2>/dev/null)
+  PRODUCTS_DIR=$(printf '%s\n' "$SETTINGS" | sed -n 's/^ *BUILT_PRODUCTS_DIR = //p' | head -1)
+  PRODUCT_NAME=$(printf '%s\n' "$SETTINGS" | sed -n 's/^ *FULL_PRODUCT_NAME = //p' | head -1)
+  APP="$PRODUCTS_DIR/$PRODUCT_NAME"
+  if [ -z "$PRODUCTS_DIR" ] || [ -z "$PRODUCT_NAME" ] || [ ! -d "$APP" ]; then
+    echo "  未找到已构建 app（先 xcodebuild build）：${APP:-<build settings 取不到>}"; fail=1
+  else
+    echo "  检查：$APP"
     for lang in en "${LANGS[@]}"; do
       if [ -d "$APP/Contents/Resources/$lang.lproj" ]; then echo "  OK app/$lang.lproj"; else echo "  MISSING app/$lang.lproj"; fail=1; fi
     done

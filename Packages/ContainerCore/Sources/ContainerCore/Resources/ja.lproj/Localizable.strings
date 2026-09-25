@@ -61,6 +61,7 @@
 /* ===== ContainerCreationPresentation：フォームの入力エラー（Day 16 T9.5） ===== */
 "Enter a container name" = "コンテナ名を入力してください";
 "Container names may only contain letters, digits, dots, dashes and underscores" = "コンテナ名に使えるのは英数字とピリオド・ハイフン・アンダースコアだけです";
+"Container names can be at most %lld characters" = "コンテナ名は %lld 文字以内にしてください";
 "Enter an image reference, for example nginx:latest" = "イメージ参照を入力してください（例：nginx:latest）";
 "Mount path %@ must start with a slash" = "マウントパス %@ はスラッシュで始めてください";
 "Mount path %@ must not contain a colon" = "マウントパス %@ にコロンは使えません";

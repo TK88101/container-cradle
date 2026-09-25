@@ -67,4 +67,23 @@ struct LibprocProcessTableTests {
             #expect(record.startTime > 0)
         }
     }
+
+    /// 真实路径上的截断（v0.3.3 W1）：内核写回的是**整块** 4096 字节——路径、NUL、一段 0，
+    /// 再往后是路径后缀的**残留副本**（2026-09-25 本机实测）。截到最后一个 NUL，或者干脆不截，
+    /// 拿到的都是垃圾。这里把解码结果和本进程可执行文件的真实路径逐字比对。
+    ///
+    /// 边界：`swift test` 下本进程是 swiftpm-testing-helper，路径是纯 ASCII，所以这条**只守截断，
+    /// 不守 UTF-8 修复**；修复由 `LibprocPathDecodingTests` 守。被测的一侧故意不做任何解析——
+    /// 原样拿来比。
+    @Test("自己的可执行文件路径逐字正确（截断在第一个 NUL，尾部残留不会混进来）")
+    func decodesOwnExecutablePath() throws {
+        let me = ProcessInfo.processInfo.processIdentifier
+        let record = try #require(table.snapshot().first { $0.pid == me })
+
+        let executable = try #require(Bundle.main.executablePath)
+        let resolved = try #require(realpath(executable, nil))
+        defer { free(resolved) }
+
+        #expect(record.executablePath == String(cString: resolved))
+    }
 }

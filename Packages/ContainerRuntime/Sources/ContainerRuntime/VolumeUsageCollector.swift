@@ -50,9 +50,11 @@ actor VolumeUsageCollector {
             continuation = cont
 
             // 预算计时器。`try?`：计时器没人取消，睡满了就该干活。
+            // 闭包强捕获 `self`，继承本 actor 的隔离，所以 `budgetFired()` 是同步调用，不是挂起点
+            // （v0.3.3：原来这里多写了一个 `await`，Swift 6.4 报 UnnecessaryEffectMarker）。
             Task {
                 try? await Task.sleep(for: budget)
-                await self.budgetFired()
+                self.budgetFired()
             }
 
             startWorkers()
@@ -66,8 +68,9 @@ actor VolumeUsageCollector {
 
             Task {
                 // `try?`：单卷失败/超时 = 该卷没有数据（fail-soft），不是整场失败。
+                // 挂起点只有 `fetch`；`finished` 在本 actor 上同步执行（理由同上面的预算计时器）。
                 let value = try? await fetch(name)
-                await self.finished(name: name, value: value)
+                self.finished(name: name, value: value)
             }
         }
 

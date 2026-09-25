@@ -35,6 +35,8 @@ public enum ContainerCreationPresentation {
                 coreLocalized: "Container names may only contain letters, digits, dots, dashes and underscores",
                 locale: locale
             )
+        case .tooLong:
+            String(coreLocalized: "Container names can be at most \(ContainerName.maxLength) characters", locale: locale)
         }
     }
 

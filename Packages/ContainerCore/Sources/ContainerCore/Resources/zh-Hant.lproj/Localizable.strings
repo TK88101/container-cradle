@@ -61,6 +61,7 @@
 /* ===== ContainerCreationPresentation：表單欄位錯誤（Day 16 T9.5） ===== */
 "Enter a container name" = "請輸入容器名稱";
 "Container names may only contain letters, digits, dots, dashes and underscores" = "容器名稱只能使用英文字母、數字、點、連字號與底線";
+"Container names can be at most %lld characters" = "容器名稱最多 %lld 個字元";
 "Enter an image reference, for example nginx:latest" = "請輸入映像檔參照，例如 nginx:latest";
 "Mount path %@ must start with a slash" = "掛載路徑 %@ 必須以斜線開頭";
 "Mount path %@ must not contain a colon" = "掛載路徑 %@ 不能包含冒號";

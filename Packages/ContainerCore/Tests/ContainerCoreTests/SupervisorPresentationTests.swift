@@ -22,7 +22,11 @@ struct SupervisorPresentationTests {
         )
 
         #expect(normal != broken)
-        #expect(SupervisorPresentation.symbol(for: .runtimeDown) != normal)
+
+        // ★ 这里**曾经**还断言 `symbol(.runtimeDown) != normal`，2026-08-21 拿掉了：
+        // 用户拍板「菜单栏一直显示线框方盒」，down 与 up 遂共用同一个符号。
+        // 放弃的是「不点开就知道运行时在不在」，**没有**放弃「熔断必须刺眼」——
+        // 上面那条 `normal != broken` 才是核心不变式，它留着。
 
         // 只有熔断该报警。别的状态（包括「运行时不在」）都是常态，不该天天喊狼来了——
         // 喊多了，真熔断那次就没人看了。

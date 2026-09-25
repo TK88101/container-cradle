@@ -91,9 +91,13 @@ public final class ImagePullStore {
 
         let cancelled = task
         cancelled?.cancel()
-        task = Task { [weak self] in
+        // `finalizeCancel` 是同一隔离域内的同步调用，不是挂起点；闭包里唯一的挂起点是 `await cancelled?.value`。
+        // 令牌校验在 `finalizeCancel` 内部，和状态写回一起同步完成。（v0.3.3：原先在它前面多写了一个 `await`，
+        // Swift 6.4 报 UnnecessaryEffectMarker。）
+        // 显式的 `@MainActor` 把隔离写进闭包的类型，不靠推断（本类本来就是 @MainActor，加它编译产物不变）。
+        task = Task { @MainActor [weak self] in
             await cancelled?.value            // 等旧 runPull 真正收尾（流 onTermination 结束迭代）
-            await self?.finalizeCancel(gen: finalizeGen)
+            self?.finalizeCancel(gen: finalizeGen)
         }
     }
 
