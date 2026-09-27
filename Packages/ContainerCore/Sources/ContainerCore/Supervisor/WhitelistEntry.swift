@@ -33,3 +33,12 @@ public protocol WhitelistProvider: Sendable {
 
     func entries() async -> [WhitelistEntry]
 }
+
+public extension WhitelistProvider {
+
+    /// 「受管」= 条目在白名单里**且**已启用——supervisor 会拉起的正是这个集合。
+    /// 运行时更新器停机前冻结的也是它（AD6：两个启动者不抢同一个容器），判据只此一处。
+    func enabledIDs() async -> Set<ContainerID> {
+        Set(await entries().filter(\.enabled).map(\.id))
+    }
+}

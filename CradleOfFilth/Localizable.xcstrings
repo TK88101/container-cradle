@@ -933,6 +933,62 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "输入 %@ 确认" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "輸入 %@ 確認" } }
       }
+    },
+    "Automatically check for updates" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "アップデートを自動で確認" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自动检查更新" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "自動檢查更新" } }
+      }
+    },
+    "Check for Updates" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "アップデートを確認" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "检查更新" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "檢查更新" } }
+      }
+    },
+    "Later" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "あとで" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "稍后" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "稍後" } }
+      }
+    },
+    "Release Notes" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リリースノート" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "发行说明" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "版本說明" } }
+      }
+    },
+    "Skip This Version" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このバージョンをスキップ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "跳过此版本" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "略過此版本" } }
+      }
+    },
+    "Start Remaining Containers" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "残りのコンテナを起動" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "启动剩余容器" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "啟動剩餘容器" } }
+      }
+    },
+    "Start Runtime" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ランタイムを起動" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "启动运行时" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "啟動執行階段" } }
+      }
+    },
+    "Update Now" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "今すぐアップデート" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "立即更新" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "立即更新" } }
+      }
     }
   },
   "version" : "1.0"

@@ -55,6 +55,13 @@ final class SupervisorNotifier {
         body.sound = .default
 
         // identifier 用同一个 key：万一系统层面也重复投递，同 id 会替换而不是叠一堆。
-        center.add(UNNotificationRequest(identifier: content.key, content: body, trigger: nil))
+        // 投递结果要可观测（附录 C1：此前只有授权失败有日志，证明不了通知真的入队）。key 是技术标识，不含用户数据。
+        center.add(UNNotificationRequest(identifier: content.key, content: body, trigger: nil)) { [log] error in
+            if let error {
+                log.error("supervisor 通知投递失败：\(error.localizedDescription, privacy: .public)")
+            } else {
+                log.notice("supervisor 通知已投递：\(content.key, privacy: .public)")
+            }
+        }
     }
 }

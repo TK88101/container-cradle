@@ -36,6 +36,12 @@ public final class SupervisorStatusStore {
     /// 这里投出去的是「这一份被采纳的快照带来的」notices，只在 sequence 闸通过后触发一次。
     @ObservationIgnored public var onNotices: (@MainActor ([SupervisorNotice]) -> Void)?
 
+    /// **每份被采纳的快照**的状态（Day 22 R4 E-6'：运行时更新器拿它当「运行时可能被别处起来了」的**触发**）。
+    ///
+    /// 只是触发，不是证据：快照跨 actor 异步投递，可能生成于很久之前——sequence 闸只保证不倒退。
+    /// 消费方要自己再做一次新鲜的探测（见 `RuntimeUpdateStore.runtimeMayHaveRestarted`）。
+    @ObservationIgnored public var onStateApplied: (@MainActor (SupervisorState) -> Void)?
+
     public init() {}
 
     /// **迟到的快照直接丢掉。**
@@ -63,6 +69,7 @@ public final class SupervisorStatusStore {
         if !snapshot.notices.isEmpty {
             onNotices?(snapshot.notices)
         }
+        onStateApplied?(snapshot.state)
     }
 
     /// 交给 `Supervisor` 的观测闭包。**composition root 唯一需要知道的一行。**

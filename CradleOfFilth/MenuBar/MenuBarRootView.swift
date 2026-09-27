@@ -36,6 +36,11 @@ struct MenuBarRootView: View {
 
             Divider()
 
+            // Day 22：apple/container 运行时更新（探测 + 升级）。
+            RuntimeUpdateSection(store: model.updates, testedVersion: model.testedRuntimeVersion)
+
+            Divider()
+
             footer
         }
         .frame(width: 320)
@@ -143,6 +148,8 @@ struct MenuBarRootView: View {
                         openWindow(id: ContainerDetailScene.windowID, value: container.id)
                     }
                 )
+                // 退出已开始：勾了也不会落盘（附录 C3），不给点。硬闸在 WhitelistUIStore。
+                .disabled(model.whitelist.isFrozen)
             }
         }
         .padding(.vertical, 4)
@@ -165,6 +172,7 @@ struct MenuBarRootView: View {
                 ) }
             }
         )
+        .disabled(model.whitelist.isFrozen)
     }
 
     private var emptyState: some View {

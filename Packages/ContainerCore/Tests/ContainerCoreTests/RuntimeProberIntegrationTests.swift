@@ -117,7 +117,7 @@ struct RuntimeProberIntegrationTests {
 
         try process.run()
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
+        process.waitUntilExitWithoutRunLoop()
 
         return String(data: data, encoding: .utf8) ?? ""
     }

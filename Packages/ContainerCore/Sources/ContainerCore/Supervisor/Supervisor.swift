@@ -61,6 +61,8 @@ public actor Supervisor {
     /// 这个标志在第一个 `await` **之前**同步置位，所以第二次调用一定看得见它。
     /// （`ContainerListStore` 的「旧刷新覆盖新刷新」是同一个坑：`@MainActor` 也挡不住重入。）
     private var isRunning = false
+    /// 叫停过（`stop()`）。与 `isRunning` 不同：从未 `start()` 过的 supervisor 不算叫停（测试一步步驱动它）。
+    private var isStopped = false
 
     /// **叫停令牌**（codex review 抓到的，第二轮才补全）。每次 `stop()` 递增。
     ///
@@ -107,6 +109,7 @@ public actor Supervisor {
     public func start() async {
         guard !isRunning else { return }
         isRunning = true
+        isStopped = false
 
         await step()
 
@@ -139,6 +142,7 @@ public actor Supervisor {
     public func stop() {
         epoch += 1
         isRunning = false
+        isStopped = true
         probeTask?.cancel()
         reconcileTask?.cancel()
         tickTask?.cancel()
@@ -164,24 +168,59 @@ public actor Supervisor {
     /// 用户按了「立即启动受管容器」。**手动兜底必须存在**（PLAN）：
     /// 任何自动状态机都有它没想到的局面，那时用户需要一个不讲道理、直接生效的出口。
     /// 它也是**熔断的唯一出口**。
+    ///
+    /// **stop 之后的调用一律忽略**（Day 22 R3）：它读的是 stop 之后的新 epoch，epoch 令牌挡不住——
+    /// 退出途中迟到的「请 reconcile」（例如更新器的恢复流程）会让一个已叫停的 supervisor 去起容器。
+    /// 判据在第一个 `await` 之前同步检查。不用 `isRunning`：测试会在未 `start()` 的 supervisor 上一步步驱动它。
     public func forceReconcile() async {
+        guard !isStopped else { return }
         let epoch = self.epoch
         let now = await clock.now()
 
         deliver(.userForcedReconcile(at: now), epoch: epoch)
     }
 
+    /// 「现在就把白名单拉一遍」——给**刚把运行时起回来**的调用方（Day 22 R5：运行时更新器的恢复 / 手动启动）。
+    ///
+    /// 先探一次再下达：supervisor 每 2 秒才探一次，可能还没看到新一代——直接 `forceReconcile` 会落在 `.runtimeDown` 上被拒
+    /// （菜单里冒出「没有运行时可拉」，请求空转）。探到新一代由既有的边沿检测触发 reconcile，随后的强制请求落在 reconciling 上
+    /// 是 no-op；冷启动 baseline（同一代、没有边沿）时强制请求照常下达。
+    /// stop 之后一律忽略（与 `forceReconcile` 同一判据，第一个 await 之前同步检查；探测途中被 stop，epoch 挡住它的结果）。
+    public func reconcileManagedNow() async {
+        guard !isStopped else { return }
+        await step()
+        await forceReconcile()
+    }
+
     // MARK: - 确定性等待点（测试驱动用）
 
-    /// 等在途的 reconcile 跑完（连同它回投的 `reconcileFinished` 被处理完）。
+    /// 等在途的 reconcile 跑完（连同它回投的 `reconcileFinished` 被处理完）。**不设上限**——
     ///
-    /// **它存在只是为了让测试不必靠 sleep 撞运气。** 生产上没有调用方：
-    /// 那边根本不关心「reconcile 什么时候完」——完了自然会有事件进来。
-    ///
-    /// 不给这个钩子，测试就只能写成「睡 50 毫秒然后但愿它跑完了」——
-    /// 那种测试在 CI 上必然间歇性红，然后被人加 `.disabled` 关掉。
+    /// 它原本只是测试的确定性等待点（不给这个钩子，测试就只能写成「睡 50 毫秒然后但愿它跑完了」）。
+    /// Day 22 R2 起生产上有且只有一个调用方：`settleBeforeStop` 的有界交接——它把这里包在 `XPCTimeout.race` 里。
+    /// **别在别处裸用它**：底层的启动调用可能挂死，裸等会把调用方一起冻住。
     public func awaitReconcile() async {
         _ = await reconcileTask?.value
+    }
+
+    /// App 退出前的**有界**交接（Day 22 R2 F）：运行时更新器的收尾刚把运行时起回来，这时立刻 `stop()`，
+    /// supervisor 可能还没探到新一代、或 reconcile 正在途中被截断——意图记录已清，下次冷启动运行时已在跑 ⇒ 走 baseline、
+    /// 不 reconcile ⇒ 白名单容器就此停着。
+    ///
+    /// 这里先探一次（新一代由既有的边沿检测触发 reconcile，不另造机制），再等在途的 reconcile 跑完；**最多等 `timeout`**。
+    /// 探测 / 启动都可能挂死（R5）——用 `XPCTimeout.race`（continuation + 不等挂死的操作），退出绝不被冻住。
+    /// 调用方之后照常 `stop()`：它会 cancel 在途的 reconcile。
+    /// - Returns: 是否在时限内交接完。
+    public func settleBeforeStop(within timeout: Duration) async -> Bool {
+        do {
+            try await XPCTimeout.race(after: timeout) { [self] in
+                await self.step()
+                await self.awaitReconcile()
+            }
+            return true
+        } catch {
+            return false
+        }
     }
 
     /// 等在途的 tick 触发（要先把 `ManualClock` 推过它的 deadline，否则会一直等下去）。

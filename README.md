@@ -33,6 +33,16 @@ logs, stats, volume/image management — is convenience on top.
   (`70 MB used / 512 GB max`) so you don't panic-delete a healthy volume;
   deletion requires typing the volume name.
 - **Images**: list and delete, with infra images filtered out.
+- **Runtime updater**: checks GitHub once a day for a new stable apple/container
+  release and asks via a system notification (update now / skip this version).
+  **Check for Updates** in the menu upgrades straight away when a newer release
+  exists. An upgrade is a planned runtime restart: the app downloads the signed
+  installer, asks for your administrator password, stops the runtime, installs,
+  starts it again, and brings back every container that was running before —
+  not only whitelisted ones. If the install fails after the stop, the runtime
+  is started again; if the app is quit or killed mid-upgrade, the next launch
+  waits for the install to finish, then starts the runtime and restores the
+  containers. Automatic checks can be turned off in the menu.
 
 ## Requirements
 
@@ -74,7 +84,27 @@ Same distribution model as Docker Desktop / OrbStack / Podman Desktop.
   `description`, `debugDescription` and `Codable` output `<redacted>`;
   plaintext requires an explicit `.reveal()` call, and a source-level boundary
   test budget counts every such call.
-- No third-party crash reporting or telemetry. Nothing leaves your machine.
+- No third-party crash reporting or telemetry.
+- **Network access (runtime updater only).** The app contacts
+  `api.github.com` to read the latest apple/container release (at most once a
+  day, and only while automatic checks are on, plus whenever you click
+  **Check for Updates**), and downloads the installer from
+  `github.com/apple/container/releases` (GitHub redirects the download to its
+  asset CDN) only when you start an upgrade. Nothing about you or your
+  containers is sent. Turn off automatic checks in the menu to stop the daily
+  request.
+- **Privileged install.** The installer package is checked twice — once by the
+  app and again as root right before installing: SHA-256 must match the
+  digest published in the GitHub release, the signature must be Apple
+  Developer ID Installer from the apple/container team (`UPBK2H6LZM`) and
+  notarized, and the package version must be the one you were offered.
+  Authorization happens before the runtime is stopped, so cancelling the
+  password prompt changes nothing.
+- On macOS 27 the password prompt shows only generic system text ("…wants
+  administrator access to a script", plus a notice that Apple could not check
+  the script for malware); the custom explanation the app passes is not
+  displayed. The menu shows which version is being installed and that the
+  runtime and running containers will restart while the prompt is open.
 - Upstream dependency is pinned (`exact: 1.4.1`) and isolated behind an
   anti-corruption layer (a small, test-enforced allowlist of files); the core
   package cannot even import it.

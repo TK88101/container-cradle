@@ -122,9 +122,12 @@ struct D1BoundaryTests {
     /// 它是覆盖率豁免的薄壳，spy 测试证明不了 `os.Logger` 插值的隐私标注——这条源码扫描补上。
     /// 承载不可信文本的符号是 `privateDetail`；它出现的那一行只准 `.private`。
     /// 突变验证过（`BoundaryScannerTests`）：把它改成 `.public` → 立刻红。
-    @Test("os.Logger 不把上游文本记成 .public")
-    func upstreamTextNeverLoggedPublic() throws {
-        let target = "Support/OSLogSupervisorLog.swift"
+    /// Day 22（安全评审 L10）：更新器的 root 级日志同一纪律——osascript 的 stderr、CLI 诊断、阻塞路径都只准 `.private`。
+    @Test("os.Logger 不把上游文本记成 .public", arguments: [
+        "Support/OSLogSupervisorLog.swift",
+        "RuntimeUpdate/RuntimeUpdateLog.swift",
+    ])
+    func upstreamTextNeverLoggedPublic(target: String) throws {
         let file = try Self.swiftSources().first { $0.relativePath == target }
 
         let osLog = try #require(file, "找不到 \(target)——扫描靶子丢了（改名 / 移动？），这条守卫已失效")

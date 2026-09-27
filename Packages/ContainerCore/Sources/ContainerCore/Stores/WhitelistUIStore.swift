@@ -45,6 +45,13 @@ public final class WhitelistUIStore {
     /// 而 supervisor 下次开机什么都不会拉——核心价值静默归零。
     public private(set) var saveError: String?
 
+    /// 退出已开始（附录 C3）：之后的勾选 / 移除一律不接。单向。
+    public private(set) var isFrozen = false
+
+    /// 退出入口同步调用（`AppLifecycle.beginQuit`）。交接里写入链只被等一次，冻结之后的勾选没人等、退出即丢——
+    /// 界面勾着、磁盘没有，下次开机 supervisor 不拉。所以冻结之后干脆不接：内存与磁盘都不动。
+    public func freeze() { isFrozen = true }
+
     private let writer: any WhitelistWriting
 
     /// 写入链的尾巴。见类型文档第 2 条。
@@ -100,6 +107,7 @@ public final class WhitelistUIStore {
     /// 勾 / 取消勾。**先改内存（同步），再排队落盘**——UI 要立刻响应，
     /// 磁盘慢不慢是磁盘的事。
     public func setManaged(_ id: ContainerID, _ managed: Bool) {
+        guard !isFrozen else { return }
         mutations += 1
         entries = Self.updated(entries, id: id, managed: managed)
 
@@ -126,6 +134,7 @@ public final class WhitelistUIStore {
     /// `StaleWhitelistRemoval.perform`（先刷新再判定，且判定与调用之间不跨 `await`）。
     /// 直接调它等于绕过那道门。
     public func remove(_ id: ContainerID) {
+        guard !isFrozen else { return }
         mutations += 1
         entries = Self.removed(entries, id: id)
 

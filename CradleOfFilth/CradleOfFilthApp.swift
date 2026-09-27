@@ -117,6 +117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `applicationWillTerminate` 里没法 `await`（AppKit 不等），所以借
     /// `applicationShouldTerminate` 的 `.terminateLater` 拿一次异步的机会：停干净了再放行。
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        model.beginQuit()      // 同步：冻结白名单与更新器，不隔调度（附录 C3）
         Task {
             await model.stop()
             NSApplication.shared.reply(toApplicationShouldTerminate: true)

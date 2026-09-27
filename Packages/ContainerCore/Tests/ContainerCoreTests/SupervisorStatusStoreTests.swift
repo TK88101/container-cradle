@@ -16,6 +16,19 @@ struct SupervisorStatusStoreTests {
     private let g1 = RuntimeGeneration(pid: 100, startTime: 1_000)
     private let g2 = RuntimeGeneration(pid: 200, startTime: 2_000)
 
+    @Test("onStateApplied：每份被采纳的快照投一次状态；迟到的旧快照不投（R4 E-6' 的触发）")
+    func stateHookFollowsSequenceGate() {
+        let store = SupervisorStatusStore()
+        var applied: [SupervisorState] = []
+        store.onStateApplied = { applied.append($0) }
+
+        store.apply(SupervisorSnapshot(state: .runtimeDown, notices: [], sequence: 2))
+        store.apply(SupervisorSnapshot(state: .runtimeUp(generation: g1, baseline: false), notices: [], sequence: 1))
+        store.apply(SupervisorSnapshot(state: .runtimeUp(generation: g2, baseline: false), notices: [], sequence: 3))
+
+        #expect(applied == [.runtimeDown, .runtimeUp(generation: g2, baseline: false)])
+    }
+
     @Test("按序到达：状态与通知都落地")
     func appliesInOrder() {
         let store = SupervisorStatusStore()
