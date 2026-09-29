@@ -48,7 +48,8 @@ final class SupervisorNotifier {
         }
     }
 
-    private func post(_ content: SystemNotificationContent) {
+    /// 投递一条已判定好的通知（内容与措辞在 core）。Day 23 起运行时自动启动的失败通知也走这里（不经 notice 去重：每次启动只尝试一轮）。
+    func post(_ content: SystemNotificationContent) {
         let body = UNMutableNotificationContent()
         body.title = content.title
         body.body = content.body

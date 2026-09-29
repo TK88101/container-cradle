@@ -22,6 +22,17 @@ logs, stats, volume/image management — is convenience on top.
   manual "start now" escape hatch. Environment-not-ready failures (external
   disk not yet mounted after reboot) never trip the breaker — they retry
   with capped backoff, because that is exactly the moment this app exists for.
+- **Runtime auto-start after a Mac restart**: apple/container does not start
+  its runtime on login (`container system start` registers the apiserver with
+  launchd only for the current session). When the app launches at login and
+  the runtime is not running, it runs `container system start` once, and the
+  supervisor then brings the whitelisted containers back. It is skipped when no
+  container is whitelisted, it does not install the kernel on its own (click
+  **Start Runtime** in the menu for that), and it never restarts a runtime you
+  stopped while the app was running. On by default; turn it off with **Start
+  runtime automatically at launch**. Nothing runs before you log in — the
+  runtime itself is a per-user login-session service. If the start fails you
+  get a system notification.
 - **Container list & details**: status, image, networks; environment variables
   are **redacted at the type level** (`SecretString`) — plaintext cannot reach
   logs, crash reports, or screenshots by construction. Copying a secret uses
@@ -85,6 +96,9 @@ Same distribution model as Docker Desktop / OrbStack / Podman Desktop.
   plaintext requires an explicit `.reveal()` call, and a source-level boundary
   test budget counts every such call.
 - No third-party crash reporting or telemetry.
+- **Runtime auto-start** runs the local `container system start` command and
+  sends nothing anywhere. On a machine where apple/container has never been
+  started, upstream may still pull its init image during that start.
 - **Network access (runtime updater only).** The app contacts
   `api.github.com` to read the latest apple/container release (at most once a
   day, and only while automatic checks are on, plus whenever you click

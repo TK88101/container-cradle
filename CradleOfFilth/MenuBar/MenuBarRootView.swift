@@ -120,7 +120,18 @@ struct MenuBarRootView: View {
 
         case .failed(let error, let lastKnown):
             VStack(alignment: .leading, spacing: 0) {
-                RuntimeDownBanner(error: error, hasStaleData: !lastKnown.isEmpty)
+                RuntimeDownBanner(
+                    error: error,
+                    hasStaleData: !lastKnown.isEmpty,
+                    startBanner: RuntimeAutoStartPresentation.startBanner(
+                        for: error,
+                        state: model.autoStarter.state,
+                        isPrimaryInstance: model.updates.isPrimaryInstance,
+                        hasManualRestore: model.updates.manualRestore != nil,
+                        isTerminating: model.autoStarter.isTerminating
+                    ),
+                    onStartRuntime: { model.autoStarter.startNow() }
+                )
 
                 // 旧数据照常显示（灰掉）：运行时挂掉时把列表清空，
                 // 用户会以为容器被删了。见 `ContainerListStore.LoadState.failed`。
@@ -205,6 +216,20 @@ struct MenuBarRootView: View {
             if let error = loginItem.error {
                 errorText(String(localized: "Failed to set login item: \(error)"))
             }
+
+            // Day 23：重启 Mac 后运行时不会自己起来（上游 apiserver 不随登录自启）——App 启动时替用户起一次。默认开（用户拍板）。
+            Toggle(
+                "Start runtime automatically at launch",
+                isOn: Binding(
+                    get: { model.autoStarter.isEnabled },
+                    set: { model.autoStarter.isEnabled = $0 }
+                )
+            )
+            .toggleStyle(.checkbox)
+            .font(.callout)
+            .help("When the app launches and the container runtime is not running, start it so managed containers come back. Skipped when no container is managed.")
+            // 退出交接期间不接受改设置（starter 里也挡了写盘）。
+            .disabled(!model.updates.isPrimaryInstance || model.autoStarter.isTerminating)
 
             // M5（Day 10）：volume / image 管理入口。Day 16 T9.6：新建容器入口。
             //

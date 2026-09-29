@@ -66,6 +66,19 @@ struct RuntimeCommandsTests {
         #expect(RuntimeCommands.startTimeout == .seconds(300))
     }
 
+    /// Day 23 运行时自动启动：显式 `--timeout 60`（不吃上游默认值；上游 ping 通 apiserver 才退出 0）。
+    /// 启动路径 `--disable-kernel-install`（登录时不装内核），横幅按钮 `--enable-kernel-install`（用户显式点击）。
+    @Test("system start（自动启动）：显式 --timeout 60；内核安装随参数", arguments: [
+        (false, "--disable-kernel-install"),
+        (true, "--enable-kernel-install"),
+    ])
+    func startRuntimeForAutoStart(allowKernelInstall: Bool, flag: String) async {
+        #expect(await commands().startRuntime(allowKernelInstall: allowKernelInstall) == .succeeded)
+        #expect(runner.calls == [.init(
+            executable: Self.cli, arguments: ["system", "start", "--timeout", "60", flag], timeout: RuntimeCommands.startTimeout
+        )])
+    }
+
     @Test("非 0 退出 → failed，带 stderr 末尾")
     func failedCommandCarriesDetail() async {
         runner.respond(to: [Self.cli, "system", "stop"], exitCode: 1, stderr: "line1\nError: something broke\n")

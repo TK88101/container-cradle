@@ -143,3 +143,16 @@
 "Another Container Cradle instance is managing runtime updates." = "另一个 Container Cradle 实例正在管理运行时更新。";
 "Could not read the running containers, so the runtime was not stopped. Waiting for the installer to give up…" = "没能读取正在运行的容器列表，因此没有停止运行时。正在等待安装程序退出…";
 "Update not performed: could not read the running containers before stopping the runtime. Nothing was stopped or installed" = "未进行更新：停止运行时之前没能读取正在运行的容器列表。没有停止或安装任何东西";
+
+/* Day 23 运行时自动启动（RuntimeAutoStartPresentation） */
+"Starting the container runtime…" = "正在启动容器运行时…";
+"Could not start the runtime: %@" = "无法启动运行时：%@";
+"A runtime update is in progress; the runtime will start when it finishes" = "正在进行运行时更新，完成后自动启动";
+"A runtime update task is running; will retry shortly" = "运行时更新任务正在进行，稍后重试";
+"Could not check whether a runtime update is running; will retry shortly" = "无法确认运行时更新状态，稍后重试";
+"container system start exited with code %@" = "container system start 以退出码 %@ 结束";
+"timed out" = "超时";
+"the runtime did not come up" = "运行时没有起来";
+"a runtime update kept it busy" = "运行时更新一直没有结束";
+"The container runtime did not start" = "容器运行时没能启动";
+"Reason: %@. Open the menu and click Start Runtime to try again (on first use this also installs the kernel)." = "原因：%@。打开菜单点「启动运行时」即可重试（首次使用时还会安装内核）。";

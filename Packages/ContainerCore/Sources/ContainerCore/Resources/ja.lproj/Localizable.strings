@@ -141,3 +141,16 @@
 "Another Container Cradle instance is managing runtime updates." = "別の Container Cradle がランタイムのアップデートを管理しています";
 "Could not read the running containers, so the runtime was not stopped. Waiting for the installer to give up…" = "実行中のコンテナ一覧を読み取れなかったため、ランタイムは停止していません。インストーラーの終了を待っています…";
 "Update not performed: could not read the running containers before stopping the runtime. Nothing was stopped or installed" = "ランタイムを停止する前に実行中のコンテナ一覧を読み取れなかったため、アップデートを中止しました。ランタイムは停止していません";
+
+/* Day 23 运行时自动启动（RuntimeAutoStartPresentation） */
+"Starting the container runtime…" = "コンテナランタイムを起動中…";
+"Could not start the runtime: %@" = "ランタイムを起動できませんでした：%@";
+"A runtime update is in progress; the runtime will start when it finishes" = "ランタイムのアップデート中です。完了後に自動で起動します";
+"A runtime update task is running; will retry shortly" = "ランタイムのアップデート処理が実行中です。まもなく再試行します";
+"Could not check whether a runtime update is running; will retry shortly" = "ランタイムのアップデート状況を確認できませんでした。まもなく再試行します";
+"container system start exited with code %@" = "container system start が終了コード %@ で終了しました";
+"timed out" = "タイムアウトしました";
+"the runtime did not come up" = "ランタイムが立ち上がりませんでした";
+"a runtime update kept it busy" = "ランタイムのアップデートが終わりませんでした";
+"The container runtime did not start" = "コンテナランタイムを起動できませんでした";
+"Reason: %@. Open the menu and click Start Runtime to try again (on first use this also installs the kernel)." = "原因：%@。メニューを開いて「ランタイムを起動」を押すと再試行できます（初回はカーネルもインストールします）。";

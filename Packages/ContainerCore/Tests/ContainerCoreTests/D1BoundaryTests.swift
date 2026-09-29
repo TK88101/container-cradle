@@ -126,6 +126,7 @@ struct D1BoundaryTests {
     @Test("os.Logger 不把上游文本记成 .public", arguments: [
         "Support/OSLogSupervisorLog.swift",
         "RuntimeUpdate/RuntimeUpdateLog.swift",
+        "RuntimeAutoStart/RuntimeAutoStartSupport.swift",
     ])
     func upstreamTextNeverLoggedPublic(target: String) throws {
         let file = try Self.swiftSources().first { $0.relativePath == target }

@@ -983,6 +983,20 @@
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "啟動執行階段" } }
       }
     },
+    "Start runtime automatically at launch" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "起動時にランタイムを自動で起動" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "启动时自动启动运行时" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "啟動時自動啟動執行階段" } }
+      }
+    },
+    "When the app launches and the container runtime is not running, start it so managed containers come back. Skipped when no container is managed." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "App の起動時にコンテナランタイムが実行されていなければ起動し、管理対象コンテナを復元します。管理対象コンテナがない場合は何もしません。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "App 启动时若容器运行时没在运行，就启动它，让受管容器回来。没有受管容器时不做任何事。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "App 啟動時若容器執行階段沒在執行，就啟動它，讓受管容器回來。沒有受管容器時不做任何事。" } }
+      }
+    },
     "Update Now" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "今すぐアップデート" } },

@@ -99,6 +99,17 @@ public struct RuntimeCommands: Sendable {
         await outcome(of: ["system", "start", "--enable-kernel-install"], timeout: Self.startTimeout)
     }
 
+    /// 运行时自动启动用（Day 23）。显式 `--timeout`：上游注册 apiserver 后 ping 它、不通即非 0 退出（`SystemStart.swift`），
+    /// 等多久不吃上游默认值（CLAUDE.md）。内核：登录时的自动路径不装（`--disable-kernel-install`），用户点按钮才装。
+    public func startRuntime(allowKernelInstall: Bool) async -> CommandOutcome {
+        let kernel = allowKernelInstall ? "--enable-kernel-install" : "--disable-kernel-install"
+        let arguments = ["system", "start", "--timeout", String(Self.apiserverReadyTimeoutSeconds), kernel]
+        return await outcome(of: arguments, timeout: Self.startTimeout)
+    }
+
+    /// 上游等 apiserver 响应的时限（与上游默认 `XPCClient.xpcRegistrationTimeout` 同值，显式传）。外层仍有 `startTimeout`。
+    static let apiserverReadyTimeoutSeconds = 60
+
     /// 以真实可执行路径判断 apiserver 在不在（复用 supervisor 的 libproc prober，argv[0] 骗不过它）。
     public func isRuntimeRunning() async -> Bool {
         if case .running = await prober.probe() { return true }

@@ -46,6 +46,9 @@ final class AppModel {
     /// Day 22：apple/container 运行时更新器（探测 + 升级）。App 级单例——升级可能在菜单关着时进行。
     let updates: RuntimeUpdateStore
 
+    /// Day 23：重启 Mac 后把运行时起回来（上游 apiserver 不随登录自启）。横幅按钮与设置开关读它。
+    let autoStarter: RuntimeAutoStarter
+
     /// 本 App 构建时 pin 的上游版本（A9：已装版本与它不同就给一行非阻断提示）。
     var testedRuntimeVersion: RuntimeVersion { UpstreamPin.version }
 
@@ -133,9 +136,12 @@ final class AppModel {
             )
         }
         self.updateScheduler = RuntimeUpdateScheduler(store: updates, initialDelay: Self.updateInitialDelay)
+        self.autoStarter = Self.makeAutoStarter(
+            supervisor: supervisor, whitelistStore: store, whitelistUI: whitelist, updates: updates, notifier: notifier
+        )
         self.lifecycle = Self.makeLifecycle(
             supervisor: supervisor, whitelist: whitelist, updates: updates, scheduler: updateScheduler,
-            notifier: notifier, updateNotifier: updateNotifier
+            autoStarter: autoStarter, notifier: notifier, updateNotifier: updateNotifier
         )
 
         // 系统通知桥接：store 在 MainActor 上把每份被采纳快照的 notices 投给 notifier
@@ -230,6 +236,7 @@ final class AppModel {
         whitelist: WhitelistUIStore,
         updates: RuntimeUpdateStore,
         scheduler: RuntimeUpdateScheduler,
+        autoStarter: RuntimeAutoStarter,
         notifier: SupervisorNotifier,
         updateNotifier: RuntimeUpdateNotifier
     ) -> AppLifecycle {
@@ -245,12 +252,17 @@ final class AppModel {
             beginBackgroundWork: {
                 // 上一次升级若没走完收尾（App 被强杀），先把它收拾好，再开始定时检查（AD9）。
                 updates.recoverIfNeeded()
+                // Day 23：此时 supervisor 首次探测已做完（看见 .runtimeDown）——起运行时 ⇒ 正常边沿 ⇒ reconcile。
+                // 排在恢复之后：恢复若欠「起运行时」，它会占着更新器，starter 延后让路。
+                autoStarter.startOnLaunchIfNeeded()
                 scheduler.start()
             },
             beginQuit: {
                 // 冻结之后的勾选没人等、退出即丢；更新器同步置 isTerminating（prepareForTermination 更晚，隔着调度）。
                 whitelist.freeze()
                 updates.beginTermination()
+                // 同步归还租约（它的 task 可能挂在不响应取消的 await 上，codex R3）。排在更新器之后：归还触发的补做被 isTerminating 挡住。
+                autoStarter.beginTermination()
             },
             prepareForQuit: {
                 // **先等升级**（Day 22）：运行时可能正被我们停着（committed 阶段）——那时退出等于把它丢在停止状态。
@@ -304,16 +316,40 @@ final class AppModel {
                 await whitelistUI.awaitWrites()
                 return await whitelistStore.enabledIDs()
             },
-            requestManagedReconcile: {
-                await whitelistUI.awaitWrites()
-                // 先探一次再下达（R5）：更新器刚起回运行时，supervisor 可能还停在 runtimeDown，直接 forceReconcile 会被拒。
-                await supervisor.reconcileManagedNow()
-            },
+            // 先探一次再下达（R5）：更新器刚起回运行时，supervisor 可能还停在 runtimeDown，直接 forceReconcile 会被拒。
+            requestManagedReconcile: { await reconcileManagedNow(supervisor: supervisor, whitelistUI: whitelistUI) },
             authorizationPrompt: { from, to in RuntimeUpdatePresentation.authorizationPrompt(from: from, to: to) }
         )
         return RuntimeUpdateStore(
             environment: environment, preferences: UserDefaultsUpdatePreferences(), isPrimaryInstance: isPrimaryInstance
         )
+    }
+
+    private static func makeAutoStarter(
+        supervisor: Supervisor,
+        whitelistStore: WhitelistStore,
+        whitelistUI: WhitelistUIStore,
+        updates: RuntimeUpdateStore,
+        notifier: SupervisorNotifier
+    ) -> RuntimeAutoStarter {
+        let starter = RuntimeAutoStarter(
+            commands: RuntimeCommands(),
+            arbiter: updates,
+            preferences: UserDefaultsRuntimeAutoStartPreferences(),
+            hasManagedContainers: {
+                await whitelistUI.awaitWrites()
+                return !(await whitelistStore.enabledIDs()).isEmpty
+            },
+            reconcileManagedNow: { await reconcileManagedNow(supervisor: supervisor, whitelistUI: whitelistUI) }
+        )
+        starter.onFailure = { [notifier] failure in notifier.post(RuntimeAutoStartPresentation.failureNotification(failure)) }
+        return starter
+    }
+
+    /// 刚把运行时起回来的调用方（更新器的复原、运行时自动启动）共用：先排空白名单写入链（reconcile 读的是盘上的白名单），再请 supervisor 拉一遍。
+    private static func reconcileManagedNow(supervisor: Supervisor, whitelistUI: WhitelistUIStore) async {
+        await whitelistUI.awaitWrites()
+        await supervisor.reconcileManagedNow()
     }
 
     /// 退出前交接的总预算（R2 F / R4 F：白名单写入链 + supervisor 交接共用）。白名单 reconcile 通常几秒；探测 / 启动 / 写盘挂死时靠它放手。

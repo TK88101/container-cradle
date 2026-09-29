@@ -90,6 +90,9 @@ public final class RuntimeUpdateStore {
     /// 启动恢复到达时 store 正忙、被挡掉的那份盘上记录（R7 D）：例如冷启动卡在读白名单时用户抢先点了「检查更新」。
     /// 操作结束时若盘上记录**仍是这一份**就补做恢复；被本会话的升级接手（写成新 nonce）或已消失就丢弃。只记有义务的记录。
     var deferredRecoveryNonce: UUID?
+    /// 外部运行时操作（运行时自动启动，Day 23）持有的租约。并入 `isBusy`：持有期间更新器的所有入口按既有单飞规则挡住。
+    /// 只经 `+ExternalOperation` 的两个方法读写。
+    var externalOperation: ExternalRuntimeToken?
 
     public init(environment: RuntimeUpdateEnvironment, preferences: any UpdatePreferences, isPrimaryInstance: Bool = true) {
         self.environment = environment
@@ -102,7 +105,8 @@ public final class RuntimeUpdateStore {
     // MARK: - 查询
 
     public var isBusy: Bool {
-        switch state {
+        if externalOperation != nil { return true }
+        return switch state {
         case .checking, .updating, .recovering: true
         default: false
         }

@@ -14,6 +14,11 @@ struct RuntimeDownBanner: View {
     /// 否则用户会把陈旧列表当成当前状态。
     let hasStaleData: Bool
 
+    /// Day 23：运行时没在跑时的「启动运行时」按钮与自动启动状态行。`nil` = 不画。
+    /// 画不画、能不能点由 core 判（`RuntimeAutoStartPresentation.startBanner`，有测试），这里只画。
+    let startBanner: RuntimeAutoStartPresentation.StartBanner?
+    let onStartRuntime: @MainActor () -> Void
+
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: icon)
@@ -27,6 +32,19 @@ struct RuntimeDownBanner: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+
+                if let banner = startBanner {
+                    if let status = banner.status {
+                        Text(status)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Button("Start Runtime", action: onStartRuntime)
+                        .controlSize(.small)
+                        .disabled(!banner.isStartEnabled)
+                        .padding(.top, 2)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
