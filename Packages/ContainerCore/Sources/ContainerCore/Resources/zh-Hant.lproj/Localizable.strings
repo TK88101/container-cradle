@@ -102,6 +102,8 @@
 "%@. The runtime is stopped." = "%@；執行階段目前處於停止狀態。";
 "Could not read the installed version: %@" = "無法讀取已安裝的版本：%@";
 "GitHub rate limit reached. Try again after %@." = "已達 GitHub 的請求上限，請在 %@ 之後再試。";
+"GitHub rate limit has reset. Check for updates again." = "GitHub 的請求上限已解除，可以再次檢查更新。";
+"Couldn't re-check just now: %@" = "這次未能重新確認：%@";
 "Update check failed: %@" = "檢查更新失敗：%@";
 "Update check failed (HTTP %@)" = "檢查更新失敗（HTTP %@）";
 "The latest release has no signed installer package" = "最新版本沒有簽署的安裝套件";
@@ -154,3 +156,5 @@
 "a runtime update kept it busy" = "執行階段更新一直沒有結束";
 "The container runtime did not start" = "容器執行階段沒能啟動";
 "Reason: %@. Open the menu and click Start Runtime to try again (on first use this also installs the kernel)." = "原因：%@。打開選單點「啟動執行階段」即可重試（首次使用時還會安裝核心）。";
+"DNS aliases are not copied to the clone" = "複製時不會帶上 DNS 別名";
+"This is taking longer than expected and may still finish. Check the container list in the menu before trying again." = "比預期慢，可能仍會完成。重試之前，請先在選單的容器列表裡確認。";

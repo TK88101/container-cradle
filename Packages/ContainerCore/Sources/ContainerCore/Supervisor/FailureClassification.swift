@@ -37,8 +37,9 @@ extension FailureKind {
             // 归进可重试档，只会把日志刷满，并让真正的问题埋在噪音里。
             self = .permanent
 
-        case .operationFailed:
+        case .operationFailed, .outcomeUnknown:
             // 这一档才是熔断要防的东西：容器起来就崩、崩了又被拉起。
+            // `.outcomeUnknown` 只由 create / clone 超时产生，不在 supervisor 路径上；穷尽 switch 要求表态，与 `.operationFailed` 同档。
             self = .transient
         }
     }

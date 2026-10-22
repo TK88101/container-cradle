@@ -58,7 +58,7 @@ struct RuntimeDownBanner: View {
         case .runtimeUnavailable: "bolt.slash"
         case .containerNotFound: "questionmark.circle"
         case .mountSourceUnavailable: "externaldrive.badge.questionmark"
-        case .operationFailed: "exclamationmark.triangle"
+        case .operationFailed, .outcomeUnknown: "exclamationmark.triangle"
         }
     }
 
@@ -69,7 +69,8 @@ struct RuntimeDownBanner: View {
         case .runtimeUnavailable: String(localized: "The container runtime is not running")
         case .containerNotFound: String(localized: "Container not found")
         case .mountSourceUnavailable: String(localized: "Mount source not ready yet")
-        case .operationFailed: String(localized: "Operation failed")
+        // `.outcomeUnknown` 只由 create / clone 产生，列表刷新到不了这里；穷尽 switch 要求表态，沿用通用失败的说法。
+        case .operationFailed, .outcomeUnknown: String(localized: "Operation failed")
         }
     }
 
@@ -90,7 +91,7 @@ struct RuntimeDownBanner: View {
             String(localized: "Container \(id.rawValue) not found. It may have been deleted.")
         case .mountSourceUnavailable(let path):
             String(localized: "\(path) does not exist on the host yet. An external disk or network volume may not be attached — it will retry automatically once mounted.")
-        case .operationFailed(let reason):
+        case .operationFailed(let reason), .outcomeUnknown(let reason):
             reason
         }
     }

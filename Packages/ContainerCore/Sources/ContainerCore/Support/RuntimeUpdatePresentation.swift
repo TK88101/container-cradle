@@ -9,7 +9,7 @@ public enum RuntimeUpdatePresentation {
     // MARK: - 菜单状态行
 
     /// `idle` 不占行（菜单里只剩版本行与按钮）。
-    public static func statusText(for state: RuntimeUpdateStore.State, locale: Locale = .current) -> String? {
+    public static func statusText(for state: RuntimeUpdateStore.State, now: Date, locale: Locale = .current) -> String? {
         switch state {
         case .idle:
             return nil
@@ -24,7 +24,7 @@ public enum RuntimeUpdatePresentation {
         case .notInstalled:
             return String(coreLocalized: "apple/container is not installed", locale: locale)
         case .checkFailed(let failure):
-            return checkFailureText(failure, locale: locale)
+            return checkFailureText(failure, now: now, locale: locale)
         case .updating(let release, let stage):
             return stageText(stage, target: release.version, locale: locale)
         case .recovering:
@@ -69,11 +69,15 @@ public enum RuntimeUpdatePresentation {
         return String(format: "%d:%02d", seconds / 60, seconds % 60)
     }
 
-    static func checkFailureText(_ failure: CheckFailure, locale: Locale) -> String {
+    static func checkFailureText(_ failure: CheckFailure, now: Date, locale: Locale) -> String {
         switch failure {
         case .installedVersionUnknown(let reason):
             return String(coreLocalized: "Could not read the installed version: \(reason)", locale: locale)
         case .rateLimited(let until):
+            // 解除时刻一过就改口（Plan 2026-10-21 §2.2）：state 是上一次观测，不随时间失效；「X 以后再试」挂过了 X 读起来像持续失败。
+            guard now < until else {
+                return String(coreLocalized: "GitHub rate limit has reset. Check for updates again.", locale: locale)
+            }
             let time = until.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(locale))
             return String(coreLocalized: "GitHub rate limit reached. Try again after \(time).", locale: locale)
         case .release(.network(let message)):
@@ -85,6 +89,19 @@ public enum RuntimeUpdatePresentation {
         case .release(.feed):
             return String(coreLocalized: "Update check failed: unexpected response from GitHub", locale: locale)
         }
+    }
+
+    /// 检查失败回退到已持有的 release 时（`RuntimeUpdateStore.recheckFailure`），状态行下面那一行：这次没能重新确认的原因。
+    public static func recheckNote(_ failure: CheckFailure, now: Date, locale: Locale = .current) -> String {
+        let reason = checkFailureText(failure, now: now, locale: locale)
+        return String(coreLocalized: "Couldn't re-check just now: \(reason)", locale: locale)
+    }
+
+    /// 文案会随时间改口（限流态：过了解除时刻要改说法）——view 据此挂每秒刷新的 `TimelineView`。
+    public static func needsPeriodicRefresh(for state: RuntimeUpdateStore.State, recheckFailure: CheckFailure?) -> Bool {
+        if case .checkFailed(.rateLimited) = state { return true }
+        if case .rateLimited? = recheckFailure { return true }
+        return false
     }
 
     static func stageText(_ stage: UpdateStage, target: RuntimeVersion, locale: Locale) -> String {

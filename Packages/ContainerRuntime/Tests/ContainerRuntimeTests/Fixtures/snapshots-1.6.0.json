@@ -1,0 +1,222 @@
+[
+  {
+    "configuration": {
+      "capAdd": [
+        "ALL"
+      ],
+      "capDrop": [],
+      "creationDate": 808465023.087695,
+      "dns": {
+        "nameservers": [],
+        "options": [],
+        "searchDomains": []
+      },
+      "id": "buildkit",
+      "image": {
+        "descriptor": {
+          "digest": "sha256:b5b3f7fa81e662db6929f1ad66d835d151a1b03f682cfe5f9fcb17fa46d6bcc9",
+          "mediaType": "application/vnd.oci.image.index.v1+json",
+          "size": 856
+        },
+        "reference": "ghcr.io/apple/container-builder-shim/builder:0.13.1"
+      },
+      "initProcess": {
+        "arguments": [
+          "--debug",
+          "--vsock"
+        ],
+        "environment": [
+          "PATH=FAKE_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "BUILDKIT_SETUP_CGROUPV2_ROOT=f"
+        ],
+        "executable": "/usr/local/bin/container-builder-shim",
+        "rlimits": [],
+        "supplementalGroups": [],
+        "terminal": false,
+        "user": {
+          "id": {
+            "gid": 0,
+            "uid": 0
+          }
+        },
+        "workingDirectory": "/"
+      },
+      "labels": {
+        "com.apple.container.plugin": "builder",
+        "com.apple.container.resource.role": "builder"
+      },
+      "mounts": [
+        {
+          "destination": "/run",
+          "options": [],
+          "source": "",
+          "type": {
+            "tmpfs": {}
+          }
+        },
+        {
+          "destination": "/var/lib/container-builder-shim/exports",
+          "options": [],
+          "source": "/Users/someone/Library/Application Support/com.apple.container/builder/",
+          "type": {
+            "virtiofs": {}
+          }
+        }
+      ],
+      "networks": [
+        {
+          "network": "default",
+          "options": {
+            "hostname": "buildkit"
+          }
+        }
+      ],
+      "platform": {
+        "architecture": "arm64",
+        "os": "linux",
+        "variant": "v8"
+      },
+      "publishedPorts": [],
+      "publishedSockets": [],
+      "readOnly": false,
+      "resources": {
+        "cpuOverhead": 1,
+        "cpus": 8,
+        "memoryInBytes": 12884901888
+      },
+      "rosetta": true,
+      "runtimeHandler": "container-runtime-linux",
+      "ssh": false,
+      "sysctls": {},
+      "useInit": false,
+      "virtualization": false
+    },
+    "networks": [],
+    "status": "stopped"
+  },
+  {
+    "configuration": {
+      "capAdd": [],
+      "capDrop": [],
+      "creationDate": 812683272.836849,
+      "dns": {
+        "nameservers": [],
+        "options": [],
+        "searchDomains": []
+      },
+      "id": "open-connector",
+      "image": {
+        "descriptor": {
+          "annotations": {
+            "com.apple.containerization.image.name": "example/open-connector:1.8.0-1",
+            "io.containerd.image.name": "docker.io/example/open-connector:1.8.0-1",
+            "org.opencontainers.image.created": "2026-01-01T00:00:00Z",
+            "org.opencontainers.image.ref.name": "1.8.0-1"
+          },
+          "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+          "mediaType": "application/vnd.oci.image.index.v1+json",
+          "size": 375
+        },
+        "reference": "example/open-connector:1.8.0-1"
+      },
+      "initProcess": {
+        "arguments": [
+          "serve"
+        ],
+        "environment": [
+          "OOMOL_CONNECT_ORIGIN=FAKE_AAAAAAAAAAAAAAAA",
+          "PORT=fake",
+          "OOMOL_CONNECT_ADMIN_TOKEN=FAKE_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "NODE_VERSION=FAKE_AA",
+          "NODE_ENV=FAKE_AAAAA",
+          "OOMOL_CONNECT_ENCRYPTION_KEY=FAKE_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "YARN_VERSION=FAKE_AA",
+          "OOMOL_CONNECT_RUNTIME_TOKEN=FAKE_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "PATH=FAKE_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "HOST=FAKE_AA",
+          "OOMOL_CONNECT_DATA_DIR=FAKE_AAAA"
+        ],
+        "executable": "/usr/local/bin/open-connector",
+        "rlimits": [],
+        "supplementalGroups": [],
+        "terminal": false,
+        "user": {
+          "id": {
+            "gid": 0,
+            "uid": 0
+          }
+        },
+        "workingDirectory": "/app"
+      },
+      "labels": {},
+      "mounts": [
+        {
+          "destination": "/app/data",
+          "options": [],
+          "source": "/Users/someone/Library/Application Support/com.apple.container/volumes/open_connector_data/volume.img",
+          "type": {
+            "volume": {
+              "cache": {
+                "on": {}
+              },
+              "format": "ext4",
+              "name": "open_connector_data",
+              "sync": {
+                "fsync": {}
+              }
+            }
+          }
+        }
+      ],
+      "networks": [
+        {
+          "network": "default",
+          "options": {
+            "hostname": "open-connector",
+            "mtu": 1280
+          }
+        }
+      ],
+      "platform": {
+        "architecture": "arm64",
+        "os": "linux"
+      },
+      "publishedPorts": [
+        {
+          "containerPort": 3000,
+          "count": 1,
+          "hostAddress": "127.0.0.1",
+          "hostPort": 3000,
+          "proto": "tcp"
+        }
+      ],
+      "publishedSockets": [],
+      "readOnly": false,
+      "resources": {
+        "cpuOverhead": 1,
+        "cpus": 4,
+        "memoryInBytes": 1073741824
+      },
+      "rosetta": false,
+      "runtimeHandler": "container-runtime-linux",
+      "ssh": false,
+      "sysctls": {},
+      "useInit": false,
+      "virtualization": false
+    },
+    "networks": [
+      {
+        "hostname": "open-connector",
+        "ipv4Address": "192.168.64.2/24",
+        "ipv4Gateway": "192.168.64.1",
+        "ipv6Address": "fd00::1/64",
+        "macAddress": "02:00:00:00:00:01",
+        "mtu": 1280,
+        "network": "default",
+        "variant": "reserved"
+      }
+    ],
+    "startedDate": 814245363.536017,
+    "status": "running"
+  }
+]

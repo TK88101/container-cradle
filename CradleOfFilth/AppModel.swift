@@ -116,6 +116,8 @@ final class AppModel {
         var fixture: RuntimeUpdateStore?
         if let ids = Self.launchArgument("COFUpdateFixtureContainerDebt") {
             fixture = UpdateScreenshotFixture.containerDebtStore(ids)
+        } else if let seconds = Self.launchArgument("COFUpdateFixtureRecheckRateLimited") {
+            fixture = UpdateScreenshotFixture.recheckRateLimitedStore(seconds)
         }
         #else
         let fixture: RuntimeUpdateStore? = nil

@@ -108,6 +108,13 @@ struct CloneContainerWindowView: View {
                 )
             }
 
+            // 源容器有 DNS aliases 时说明克隆不带上它们（判断在 core，Plan 2026-10-21 §2.3-3）。
+            if let note = ContainerCreationPresentation.cloneAliasNote(for: template) {
+                Text(note)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
             TextField(text: $store.newName, prompt: Text(verbatim: "my-clone")) {
                 Text("New name")
             }

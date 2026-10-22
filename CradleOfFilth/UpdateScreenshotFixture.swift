@@ -18,6 +18,36 @@ enum UpdateScreenshotFixture {
         let ids = rawIDs.split(separator: ",").compactMap { ContainerID(String($0)) }
         let from = UpstreamPin.version
         let installed = RuntimeVersion(major: from.major, minor: from.minor + 1, patch: 0)
+        let store = inertStore()
+        store.presentContainerDebtFixture(ids, installed: installed, from: from)
+        return store
+    }
+
+    /// Day 24 A/B 验收（Plan 2026-10-21 A/B-fx）：启动参数 `-COFUpdateFixtureRecheckRateLimited <秒>`。
+    /// 摆出「有可用版本 + 这次撞了限流没能重新确认」，限流在启动后 `<秒>` 解除——菜单不关，到点看状态行改口。
+    /// 误点「Update Now」落到惰性下载器的失败，不发请求、不弹密码框。
+    @MainActor
+    static func recheckRateLimitedStore(_ rawSeconds: String) -> RuntimeUpdateStore {
+        let seconds = TimeInterval(rawSeconds) ?? 60
+        let installed = UpstreamPin.version
+        let target = RuntimeVersion(major: installed.major, minor: installed.minor + 1, patch: 0)
+        let release = RuntimeRelease(
+            version: target,
+            packageName: "container-\(target)-installer-signed.pkg",
+            packageURL: URL(string: "https://invalid.example/screenshot-fixture.pkg")!,
+            packageSHA256: SHA256Digest(hex: String(repeating: "0", count: 64))!,
+            packageSize: 0,
+            releasePageURL: URL(string: "https://github.com/apple/container/releases")!
+        )
+        let store = inertStore()
+        store.presentRecheckFailureFixture(
+            installed: installed, release: release, failure: .rateLimited(until: Date().addingTimeInterval(seconds))
+        )
+        return store
+    }
+
+    @MainActor
+    private static func inertStore() -> RuntimeUpdateStore {
         let environment = RuntimeUpdateEnvironment(
             feed: OfflineFeed(),
             downloader: InertDownloader(),
@@ -28,9 +58,7 @@ enum UpdateScreenshotFixture {
             requestManagedReconcile: {},
             authorizationPrompt: { _, _ in "" }
         )
-        let store = RuntimeUpdateStore(environment: environment, preferences: MemoryPreferences(), isPrimaryInstance: true)
-        store.presentContainerDebtFixture(ids, installed: installed, from: from)
-        return store
+        return RuntimeUpdateStore(environment: environment, preferences: MemoryPreferences(), isPrimaryInstance: true)
     }
 
     /// 误点「检查更新」只落到 checkFailed：不发 GitHub 请求。

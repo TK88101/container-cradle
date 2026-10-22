@@ -22,7 +22,7 @@ private actor GatedCloneClient: ContainerRuntimeClient, VolumeImageUnimplemented
         return ContainerCloneTemplate(
             image: ImageRef("img-\(index)")!,
             environment: [],
-            mountSummary: MountSummary(volumeCount: 0, bindCount: 0, tmpfsCount: 0)
+            mountSummary: MountSummary(volumeCount: 0, bindCount: 0, tmpfsCount: 0), aliasCount: 0
         )
     }
 
@@ -268,7 +268,7 @@ struct ContainerCloneStoreTests {
             ContainerCloneTemplate(
                 image: ImageRef("img-1")!,
                 environment: [],
-                mountSummary: MountSummary(volumeCount: 0, bindCount: 0, tmpfsCount: 0)
+                mountSummary: MountSummary(volumeCount: 0, bindCount: 0, tmpfsCount: 0), aliasCount: 0
             )
         ))
 
@@ -279,7 +279,7 @@ struct ContainerCloneStoreTests {
             ContainerCloneTemplate(
                 image: ImageRef("img-1")!,
                 environment: [],
-                mountSummary: MountSummary(volumeCount: 0, bindCount: 0, tmpfsCount: 0)
+                mountSummary: MountSummary(volumeCount: 0, bindCount: 0, tmpfsCount: 0), aliasCount: 0
             )
         ))
     }

@@ -33,6 +33,12 @@ enum Fixtures {
         try #require(snapshots("snapshots").first)
     }
 
+    /// Day 24 P4：上游 1.6.0 运行时录的 `[buildkit(stopped), open-connector(running)]`。env 值换成同长合成串、
+    /// 家目录换成 `someone`。旧两份（1.1.0 时期录）保留：它们在新上游下仍能 decode，就是「旧记录仍能解」的证据。
+    static func recorded160() throws -> [ContainerSnapshot] {
+        try snapshots("snapshots-1.6.0")
+    }
+
     /// ★ R13 的靶子：stopped，带一个 **virtiofs** mount 指向外置盘（另有一个 volume mount 作对照——
     /// 它**不该**被校验）。
     static func needsExternalDisk() throws -> ContainerSnapshot {

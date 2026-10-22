@@ -30,8 +30,16 @@ struct RuntimeUpdateSection: View {
                     .disabled(store.isBusy || !store.isPrimaryInstance || store.isTerminating)
             }
 
-            if let status = RuntimeUpdatePresentation.statusText(for: store.state) {
-                statusLine(status)
+            refreshing { now in
+                if let status = RuntimeUpdatePresentation.statusText(for: store.state, now: now) {
+                    statusLine(status)
+                }
+                if let failure = store.recheckFailure {
+                    Text(RuntimeUpdatePresentation.recheckNote(failure, now: now))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             actions
@@ -57,6 +65,23 @@ struct RuntimeUpdateSection: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    /// 文案会到点改口（限流解除）时挂 `TimelineView` 重绘；文案必须在 closure 里用 `context.date` 现算——
+    /// 外面先算好的字符串包进 Timeline，到点重绘的仍是旧字符串（Plan 2026-10-21 §2.2 R1-1）。挂不挂由 core 判断。
+    /// 用每秒一次的 periodic，不用 `.explicit([until])`（Day 24 真机诊断日志实测）：菜单栏弹窗里 explicit 只在打开时渲染，
+    /// 到点那次从不触发；且只给 `[until]` 时首次渲染的 `context.date` 就是 until 本身，没到点就已改口。
+    /// 只在限流态挂，弹窗关着时不渲染，代价可忽略。
+    @ViewBuilder
+    private func refreshing<Content: View>(@ViewBuilder _ content: @escaping (Date) -> Content) -> some View {
+        if RuntimeUpdatePresentation.needsPeriodicRefresh(for: store.state, recheckFailure: store.recheckFailure) {
+            // 显式左对齐：closure 里的多行默认被居中包起来，改口后行宽变化，较短的状态行会被挤到中间（真机截图实测）。
+            TimelineView(.periodic(from: Date(), by: 1)) { context in
+                VStack(alignment: .leading, spacing: 6) { content(context.date) }
+            }
+        } else {
+            content(Date())
+        }
     }
 
     /// 升级进行中带已用时间（真下载 118 MB 实测 206 秒——没有时间读数的「下载中…」看起来像卡死）。

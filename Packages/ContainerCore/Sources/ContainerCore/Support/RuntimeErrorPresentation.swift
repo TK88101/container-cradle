@@ -34,6 +34,18 @@ enum RuntimeErrorPresentation {
             )
         case .operationFailed(let reason):
             reason
+        case .outcomeUnknown:
+            // 不透传 reason：「XPC call timed out」读起来就是失败，而这里要说的恰恰是「可能还没失败」。
+            outcomeUnknownText(locale: locale)
         }
+    }
+
+    /// `.outcomeUnknown` 的用户文案（create / clone 提交失败也直接用它，不加 "Create failed:" 前缀）。
+    static func outcomeUnknownText(locale: Locale) -> String {
+        String(
+            coreLocalized:
+                "This is taking longer than expected and may still finish. Check the container list in the menu before trying again.",
+            locale: locale
+        )
     }
 }

@@ -161,7 +161,7 @@ struct CloneSanitizeTests {
         }
     }
 
-    @Test("接线：clone create 卡死 → createTimeout 后返回，不冻住")
+    @Test("接线：clone create 卡死 → createTimeout 后返回、不冻住，报 outcomeUnknown（不是失败）")
     func cloneHangReturnsAfterTimeout() async throws {
         let snapshot = try Fixtures.openConnector()
         let sourceID = try #require(ContainerID(snapshot.id))
@@ -173,9 +173,13 @@ struct CloneSanitizeTests {
             prober: FakeRuntimeProber.up,
             createTimeout: .milliseconds(50)
         )
+        let name = try ContainerName("clone-01")
 
-        await #expect(throws: RuntimeError.self) {
-            _ = try await sut.create(clonedFrom: sourceID, name: try ContainerName("clone-01"), envOverride: nil)
+        do {
+            _ = try await sut.create(clonedFrom: sourceID, name: name, envOverride: nil)
+            Issue.record("expected a throw")
+        } catch {
+            guard case .outcomeUnknown = error else { Issue.record("got \(error)"); return }
         }
     }
 }

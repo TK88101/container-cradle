@@ -40,17 +40,17 @@ let package = Package(
         // `exact:` 不是 `from:`——上游明确没有 API 稳定性承诺（那些 public 是跨 module 的
         // 技术需要，不是契约）。`from:` 会让 1.2.0 悄悄进来改字段，而我们的 mapper
         // 会在运行时静默地映射出错误的东西。R1。
-        .package(url: "https://github.com/apple/container.git", exact: "1.4.1"),
+        .package(url: "https://github.com/apple/container.git", exact: "1.6.0"),
 
-        // **不是新增依赖**——`containerization` 本来就在依赖图里（container 1.4.1 自己 pin 的
-        // 就是 0.45.0，见 Package.resolved）。这里只是把它**显式化**，因为 SPM 不允许
+        // **不是新增依赖**——`containerization` 本来就在依赖图里（container 1.6.0 自己 pin 的
+        // 就是 0.52.1，见 Package.resolved）。这里只是把它**显式化**，因为 SPM 不允许
         // 借用传递依赖的 product，而 `ContainerizationError`（错误分类要用）由它导出：
         // 上游的 library "Containerization" 的 targets 里含 "ContainerizationError"，
         // **没有**叫 `ContainerizationError` 的 product。
         //
         // 两个 `exact:` 必须对得上。将来 container 升级换了 containerization 版本，
         // 这里会**解析失败**——响亮地失败，而不是悄悄拉进两份不兼容的类型。
-        .package(url: "https://github.com/apple/containerization.git", exact: "0.45.0"),
+        .package(url: "https://github.com/apple/containerization.git", exact: "0.52.1"),
 
         // 同上——swift-system 也是传递依赖的显式化（Package.resolved 已 pin 1.7.4）：
         // M5 的 infra 镜像过滤要走 CLI 同源的 config 加载路径（`ClientHealthCheck.ping`

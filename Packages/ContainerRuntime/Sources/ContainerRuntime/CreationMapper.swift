@@ -188,7 +188,10 @@ enum CreationMapper {
                 options: AttachmentOptions(
                     hostname: newID,
                     macAddress: nil,
-                    mtu: attachment.options.mtu
+                    mtu: attachment.options.mtu,
+                    // 显式清空，不吃上游默认值（1.6.0 起有）：exact alias 在所有容器（含已停止）中唯一，
+                    // 源容器还在，带过去 create 必 `.exists`（上游 `AttachmentNameValidator`）。确认界面会说明没复制。
+                    aliases: []
                 )
             )
         }

@@ -67,14 +67,40 @@ struct LiveContainerRuntimeClientCreateTests {
         }
     }
 
-    @Test("create 卡死 → 在 createTimeout 后返回，不冻住")
+    /// Day 24：超时 ≠ 失败。`XPCTimeout` 不等在途调用，上游的 create 可能照样完成 → `.outcomeUnknown`，不是 `.operationFailed`。
+    @Test("create 卡死 → 在 createTimeout 后返回、不冻住，报 outcomeUnknown（不是失败）")
     func createHangReturnsAfterTimeout() async throws {
         let upstream = FakeUpstreamClient()
         await upstream.setHangCreate(true)
         let sut = client(upstream: upstream, createTimeout: .milliseconds(50))
+        let spec = try spec()
 
-        await #expect(throws: RuntimeError.self) {
-            _ = try await sut.create(try spec())
+        do {
+            _ = try await sut.create(spec)
+            Issue.record("expected a throw")
+        } catch {
+            guard case .outcomeUnknown = error else { Issue.record("got \(error)"); return }
         }
+    }
+
+    @Test("create 超时那一刻运行时已不在 → 仍是 runtimeUnavailable（R14：进程表优先）")
+    func createTimeoutWithRuntimeDownStaysUnavailable() async throws {
+        let upstream = FakeUpstreamClient()
+        await upstream.setHangCreate(true)
+        let sut = client(upstream: upstream, prober: .down, createTimeout: .milliseconds(50))
+        let spec = try spec()
+
+        do {
+            _ = try await sut.create(spec)
+            Issue.record("expected a throw")
+        } catch {
+            #expect(error == .runtimeUnavailable)
+        }
+    }
+
+    /// 不变式而非常量：Day 24 实测运行时刚升级后第一次 clone 257 s。
+    @Test("默认 create 超时覆盖实测的冷启动（≥ 257 s）")
+    func defaultCreateTimeoutCoversColdStart() {
+        #expect(LiveContainerRuntimeClient.defaultCreateTimeout >= .seconds(257))
     }
 }

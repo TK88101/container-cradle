@@ -324,7 +324,7 @@ public actor FakeContainerRuntimeClient: ContainerRuntimeClient {
         return ContainerCloneTemplate(
             image: found.image,
             environment: found.environment,
-            mountSummary: MountSummary(volumeCount: 0, bindCount: 0, tmpfsCount: 0)
+            mountSummary: MountSummary(volumeCount: 0, bindCount: 0, tmpfsCount: 0), aliasCount: 0
         )
     }
 

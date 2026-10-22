@@ -14,11 +14,15 @@ public struct ContainerCloneTemplate: Sendable, Equatable {
     public let environment: [EnvironmentVariable]
     /// 挂载摘要计数——UI 显示「继承 N 个挂载：x volume / y bind / z tmpfs」，只读、不可编辑。
     public let mountSummary: MountSummary
+    /// 源容器各网络附着的 DNS aliases 总数（上游 1.6.0 起有）。克隆**不复制** aliases（exact alias 全局唯一，带过去 create 必冲突）——
+    /// 确认界面据此说一句「没复制」。**只有数量上浮**，alias 名字留桥内（Plan 2026-10-21 §2.3-3）。
+    public let aliasCount: Int
 
-    public init(image: ImageRef, environment: [EnvironmentVariable], mountSummary: MountSummary) {
+    public init(image: ImageRef, environment: [EnvironmentVariable], mountSummary: MountSummary, aliasCount: Int) {
         self.image = image
         self.environment = environment
         self.mountSummary = mountSummary
+        self.aliasCount = aliasCount
     }
 }
 

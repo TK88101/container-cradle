@@ -102,6 +102,8 @@
 "%@. The runtime is stopped." = "%@。ランタイムは停止したままです。";
 "Could not read the installed version: %@" = "インストール済みのバージョンを読み取れません：%@";
 "GitHub rate limit reached. Try again after %@." = "GitHub のリクエスト上限に達しました。%@ 以降にもう一度お試しください。";
+"GitHub rate limit has reset. Check for updates again." = "GitHub のリクエスト上限は解除されました。もう一度アップデートを確認できます。";
+"Couldn't re-check just now: %@" = "今回は再確認できませんでした：%@";
 "Update check failed: %@" = "アップデートの確認に失敗しました：%@";
 "Update check failed (HTTP %@)" = "アップデートの確認に失敗しました（HTTP %@）";
 "The latest release has no signed installer package" = "最新リリースに署名付きインストーラがありません";
@@ -154,3 +156,5 @@
 "a runtime update kept it busy" = "ランタイムのアップデートが終わりませんでした";
 "The container runtime did not start" = "コンテナランタイムを起動できませんでした";
 "Reason: %@. Open the menu and click Start Runtime to try again (on first use this also installs the kernel)." = "原因：%@。メニューを開いて「ランタイムを起動」を押すと再試行できます（初回はカーネルもインストールします）。";
+"DNS aliases are not copied to the clone" = "DNS エイリアスはクローンにコピーされません";
+"This is taking longer than expected and may still finish. Check the container list in the menu before trying again." = "想定より時間がかかっていますが、まだ完了する可能性があります。もう一度試す前に、メニューのコンテナ一覧で確認してください。";

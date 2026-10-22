@@ -18,7 +18,7 @@ struct ContainerCloneTemplateTests {
         let template = ContainerCloneTemplate(
             image: image,
             environment: [],
-            mountSummary: MountSummary(volumeCount: 0, bindCount: 0, tmpfsCount: 0)
+            mountSummary: MountSummary(volumeCount: 0, bindCount: 0, tmpfsCount: 0), aliasCount: 0
         )
         #expect(template.image.rawValue == "nginx:1.27")
     }
@@ -34,7 +34,7 @@ struct ContainerCloneTemplateTests {
                 EnvironmentVariable(key: "TOKEN", value: SecretString(Self.secretValue)),
                 EnvironmentVariable(key: "PATH", value: SecretString("/usr/bin")),
             ],
-            mountSummary: MountSummary(volumeCount: 0, bindCount: 0, tmpfsCount: 0)
+            mountSummary: MountSummary(volumeCount: 0, bindCount: 0, tmpfsCount: 0), aliasCount: 0
         )
 
         #expect(template.environment.count == 2)

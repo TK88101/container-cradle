@@ -7,5 +7,5 @@ import ContainerCore
 ///
 /// **不 import 上游**，不进边界白名单。
 public enum UpstreamPin {
-    public static let version = RuntimeVersion(major: 1, minor: 4, patch: 1)
+    public static let version = RuntimeVersion(major: 1, minor: 6, patch: 0)
 }

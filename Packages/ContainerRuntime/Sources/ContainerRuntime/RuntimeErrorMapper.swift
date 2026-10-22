@@ -72,6 +72,7 @@ struct RuntimeErrorMapper: Sendable {
         // 到这里，进程表说 apiserver 还活着。超时于是就只是超时（对端僵死 / 忙）——
         // 归 `.operationFailed` → `.transient` → 走退避 + 计入熔断（R5 要的正是这个：
         // 持续超时说明运行时病了，熔断报警要人工介入）。
+        // 例外：create / clone 的超时由 `LiveContainerRuntimeClient.createError` 在这之后改报 `.outcomeUnknown`（结果未知、可能仍会完成）。
         if let timeout = error as? XPCTimeout.TimedOut {
             return .operationFailed(reason: "XPC call timed out (\(timeout.after))")
         }

@@ -54,4 +54,10 @@ public enum RuntimeError: Error, Equatable, Sendable {
     /// - Parameter reason: 上游给的说法。**只用于展示与日志，绝不用于分类**——
     ///   靠嗅字符串分类，上游改一个字就无声失效（R14 的同一条教训）。
     case operationFailed(reason: String)
+    /// 等到超时也没等来结果，**操作可能仍会完成**（Day 24，Plan 2026-10-21 附录 B）。只由 create / clone 产生：
+    /// `XPCTimeout` 到点即返回、不等在途调用，上游的 create 还在跑——之后容器可能照样建出来。
+    /// 与 `.operationFailed` 分开，界面才不会把「还在建」说成「失败」。supervisor 路径不产生它。
+    ///
+    /// - Parameter reason: 超时诊断串，只用于展示与日志，绝不用于分类。
+    case outcomeUnknown(reason: String)
 }

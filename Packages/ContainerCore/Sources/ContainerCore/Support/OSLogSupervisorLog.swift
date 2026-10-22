@@ -119,6 +119,7 @@ public struct OSLogSupervisorLog: SupervisorLog {
         case .containerNotFound: "containerNotFound"
         case .mountSourceUnavailable: "mountSourceUnavailable"
         case .operationFailed: "operationFailed"
+        case .outcomeUnknown: "outcomeUnknown"
         }
     }
 
@@ -131,7 +132,7 @@ public struct OSLogSupervisorLog: SupervisorLog {
             id.rawValue
         case .mountSourceUnavailable(let path):
             path
-        case .operationFailed(let reason):
+        case .operationFailed(let reason), .outcomeUnknown(let reason):
             reason
         }
     }

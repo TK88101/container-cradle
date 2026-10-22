@@ -3,7 +3,7 @@
 /// fresh 创建与 clone 提交都要一个「新名」，两处共用同一套校验，故独立成类型：非法名构造不出来
 /// （坑清单「边界值绕过硬约束」），UI 只负责把 `ContainerNameError` 翻成文案。
 ///
-/// ## 逐字镜像上游 `ManagedContainer.nameValid`（1.4.1）
+/// ## 逐字镜像上游 `ManagedContainer.nameValid`（1.4.1 起；1.6.0 核过未变，`ContainerNameParityTests` 绿）
 ///
 /// 上游 create 序列拒非法名的规则＝长度上限 + 正则（1.1.0 时在 `Utility.validEntityName`，
 /// 1.4.1 删了它、规则收进 `ManagedContainer.nameValid` 并**新增** `count <= 63`——DNS label 上限）：

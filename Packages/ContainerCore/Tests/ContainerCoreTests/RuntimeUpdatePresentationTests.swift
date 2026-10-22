@@ -16,6 +16,7 @@ struct RuntimeUpdatePresentationTests {
     static let en = Locale(identifier: "en")
     static let zhHans = Locale(identifier: "zh-Hans")
     static let foreign = ["ja", "zh-Hans", "zh-Hant"].map(Locale.init(identifier:))
+    static let now = Date(timeIntervalSince1970: 1_790_000_000)
 
     static let failures: [UpdateFailure] = [
         .anotherJobRunning, .lockProbeFailed(73),
@@ -38,7 +39,9 @@ struct RuntimeUpdatePresentationTests {
 
     static let states: [RuntimeUpdateStore.State] = [
         .checking, .upToDate(v141), .available(installed: v141, release: release), .skipped(installed: v141, release: release),
+        // 限流两态都在：解除时刻已过（改口）/ 未到（原文案）。
         .notInstalled, .checkFailed(.installedVersionUnknown("x")), .checkFailed(.rateLimited(until: Date(timeIntervalSince1970: 0))),
+        .checkFailed(.rateLimited(until: now.addingTimeInterval(600))),
         .checkFailed(.release(.network("x"))), .checkFailed(.release(.http(500))), .checkFailed(.release(.feed(.malformed))),
         .checkFailed(.release(.feed(.noSignedPackage))), .checkFailed(.release(.feed(.notAStableRelease))),
         .checkFailed(.release(.feed(.unparsableVersion("x")))),
@@ -53,9 +56,9 @@ struct RuntimeUpdatePresentationTests {
 
     @Test("idle 没有状态行；其余每个状态都有非空文案")
     func everyStateHasText() {
-        #expect(RuntimeUpdatePresentation.statusText(for: .idle, locale: Self.en) == nil)
+        #expect(RuntimeUpdatePresentation.statusText(for: .idle, now: Self.now, locale: Self.en) == nil)
         for state in Self.states {
-            let text = RuntimeUpdatePresentation.statusText(for: state, locale: Self.en)
+            let text = RuntimeUpdatePresentation.statusText(for: state, now: Self.now, locale: Self.en)
             #expect(text?.isEmpty == false, "\(state)")
         }
     }
@@ -63,8 +66,8 @@ struct RuntimeUpdatePresentationTests {
     @Test("非英语语言下每条文案都不等于英文（翻译已接上）", arguments: foreign)
     func noKeyEcho(locale: Locale) {
         for state in Self.states {
-            let english = RuntimeUpdatePresentation.statusText(for: state, locale: Self.en)
-            let translated = RuntimeUpdatePresentation.statusText(for: state, locale: locale)
+            let english = RuntimeUpdatePresentation.statusText(for: state, now: Self.now, locale: Self.en)
+            let translated = RuntimeUpdatePresentation.statusText(for: state, now: Self.now, locale: locale)
             #expect(translated != english, "\(locale.identifier): \(state)")
         }
         #expect(RuntimeUpdatePresentation.authorizationPrompt(from: Self.v141, to: Self.v150, locale: locale)
@@ -75,18 +78,18 @@ struct RuntimeUpdatePresentationTests {
 
     @Test("zh-Hans 逐字：可用 / 已是最新 / 运行时被留在停止状态")
     func zhHansGolden() {
-        #expect(RuntimeUpdatePresentation.statusText(for: .available(installed: Self.v141, release: Self.release), locale: Self.zhHans)
+        #expect(RuntimeUpdatePresentation.statusText(for: .available(installed: Self.v141, release: Self.release), now: Self.now, locale: Self.zhHans)
             == "apple/container 1.5.0 可用（当前 1.4.1）")
-        #expect(RuntimeUpdatePresentation.statusText(for: .upToDate(Self.v141), locale: Self.zhHans)
+        #expect(RuntimeUpdatePresentation.statusText(for: .upToDate(Self.v141), now: Self.now, locale: Self.zhHans)
             == "apple/container 1.4.1 已是最新")
-        #expect(RuntimeUpdatePresentation.statusText(for: .failed(.anotherJobRunning, pending: .runtimeStopped(because: .anotherJobRunning)), locale: Self.zhHans)
+        #expect(RuntimeUpdatePresentation.statusText(for: .failed(.anotherJobRunning, pending: .runtimeStopped(because: .anotherJobRunning)), now: Self.now, locale: Self.zhHans)
             == "另一个更新正在进行；运行时目前处于停止状态。")
     }
 
     @Test("zh-Hans 逐字：还欠着什么、为什么（R4 B/C/D）")
     func zhHansPendingGolden() {
         func text(_ failure: UpdateFailure, _ pending: PendingRestore?) -> String? {
-            RuntimeUpdatePresentation.statusText(for: .failed(failure, pending: pending), locale: Self.zhHans)
+            RuntimeUpdatePresentation.statusText(for: .failed(failure, pending: pending), now: Self.now, locale: Self.zhHans)
         }
         #expect(text(.installFailed(details: ["x"]), .runtimeStopped(because: .anotherJobRunning))
             == "安装程序失败（x）；运行时目前处于停止状态：另一个更新正在进行。")
@@ -114,10 +117,14 @@ struct RuntimeUpdatePresentationTests {
     @Test("四语 × 全部失败 × 全部欠账：拼出来的状态行与通知正文没有重复 / 缺失的句间标点", arguments: [en] + foreign)
     func noBrokenPunctuationWhenJoined(locale: Locale) {
         let broken = ["。。", "。；", "；。", "..", ".;", "。.", ".。"]
-        var texts = Self.states.compactMap { RuntimeUpdatePresentation.statusText(for: $0, locale: locale) }
+        var texts = Self.states.compactMap { RuntimeUpdatePresentation.statusText(for: $0, now: Self.now, locale: locale) }
         for failure in Self.failures {
             let content = RuntimeUpdatePresentation.runtimeLeftStoppedNotification(failure: failure, because: .anotherJobRunning, locale: locale)
             texts.append(content.body)
+        }
+        for state in Self.states {
+            guard case .checkFailed(let failure) = state else { continue }
+            texts.append(RuntimeUpdatePresentation.recheckNote(failure, now: Self.now, locale: locale))
         }
         for text in texts {
             #expect(!broken.contains { text.contains($0) }, "\(locale.identifier): \(text)")
@@ -132,7 +139,7 @@ struct RuntimeUpdatePresentationTests {
     func failureNeverReadsAsUpToDate() {
         for state in Self.states {
             guard case .checkFailed = state else { continue }
-            #expect(RuntimeUpdatePresentation.statusText(for: state, locale: Self.en)?.contains("up to date") == false)
+            #expect(RuntimeUpdatePresentation.statusText(for: state, now: Self.now, locale: Self.en)?.contains("up to date") == false)
         }
     }
 
@@ -174,7 +181,7 @@ struct RuntimeUpdatePresentationTests {
     ])
     func awaitingAuthorizationNamesTargetAndRestart(language: String, restartWord: String) {
         let text = RuntimeUpdatePresentation.statusText(
-            for: .updating(Self.release, .awaitingAuthorization), locale: Locale(identifier: language))
+            for: .updating(Self.release, .awaitingAuthorization), now: Self.now, locale: Locale(identifier: language))
         #expect(text?.contains("1.5.0") == true, "\(language): \(text ?? "nil")")
         #expect(text?.contains(restartWord) == true, "\(language): \(text ?? "nil")")
     }

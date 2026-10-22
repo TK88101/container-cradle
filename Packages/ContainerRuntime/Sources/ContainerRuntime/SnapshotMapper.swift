@@ -76,7 +76,9 @@ enum SnapshotMapper {
         return ContainerCloneTemplate(
             image: image,
             environment: environment(from: snapshot.configuration.initProcess.environment),
-            mountSummary: mountSummary(from: snapshot.configuration.mounts)
+            mountSummary: mountSummary(from: snapshot.configuration.mounts),
+            // 只上浮数量：alias 名字留桥内（Plan 2026-10-21 §2.3-3）。
+            aliasCount: snapshot.configuration.networks.reduce(0) { $0 + $1.options.aliases.count }
         )
     }
 

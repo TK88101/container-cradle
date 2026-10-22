@@ -75,6 +75,9 @@ public enum ContainerCreationPresentation {
                     "Could not check existing containers, so nothing was created: \(RuntimeErrorPresentation.detail(error, locale: locale))",
                 locale: locale
             )
+        case .createFailed(.outcomeUnknown):
+            // 超时 ≠ 失败：容器可能仍会建出来，不能说 "Create failed"（Day 24）。
+            RuntimeErrorPresentation.outcomeUnknownText(locale: locale)
         case .createFailed(let error):
             String(
                 coreLocalized: "Create failed: \(RuntimeErrorPresentation.detail(error, locale: locale))",
@@ -92,6 +95,14 @@ public enum ContainerCreationPresentation {
                 locale: locale
             )
         }
+    }
+
+    // MARK: - clone 确认：aliases 没复制
+
+    /// 源容器有 DNS aliases 时，确认界面多一行说明克隆不会带上它们（Plan 2026-10-21 §2.3-3）。不点名：template 里只有数量。
+    public static func cloneAliasNote(for template: ContainerCloneTemplate, locale: Locale = .current) -> String? {
+        guard template.aliasCount > 0 else { return nil }
+        return String(coreLocalized: "DNS aliases are not copied to the clone", locale: locale)
     }
 
     // MARK: - clone 模板加载失败
@@ -132,6 +143,9 @@ public enum ContainerCreationPresentation {
                     "Could not check existing containers, so nothing was created: \(RuntimeErrorPresentation.detail(error, locale: locale))",
                 locale: locale
             )
+        case .createFailed(.outcomeUnknown):
+            // 同 create：超时 ≠ 失败，克隆体可能仍会建出来。
+            RuntimeErrorPresentation.outcomeUnknownText(locale: locale)
         case .createFailed(let error):
             String(
                 coreLocalized: "Clone failed: \(RuntimeErrorPresentation.detail(error, locale: locale))",

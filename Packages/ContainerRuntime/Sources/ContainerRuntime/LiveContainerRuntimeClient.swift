@@ -35,11 +35,12 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
     /// （首次用某镜像的 create 必败——「编译绿测试绿看不出异常」型）。create 是 UI 一次性动作、
     /// **不在 supervisor reconcile 路径上**，故一个卡死也冻不住核心 supervisor——这个超时只是
     /// 「多久告诉用户它卡了」的 UX 上界，不参与熔断/退避（无「乘出真实时间」的复合风险）。
-    /// 预填流程只提供已 pull 的镜像（§3.6 `ImageListStore` 下拉），本地装配通常几秒内完成。
+    /// 预填流程只提供已 pull 的镜像（§3.6 `ImageListStore` 下拉），热路径本地装配不到 1 秒；运行时刚升级后的第一次例外（见下）。
     private let createTimeout: Duration
 
-    /// 见上。默认 120s：本地镜像装配的宽裕头量。
-    public static let defaultCreateTimeout: Duration = .seconds(120)
+    /// 见上。默认 300s：运行时刚升级后的**第一次** create 要冷启动（Day 24 实测 clone 257s、create >120s；
+    /// 热跑 0.2s）。超时也不等于失败——在途的 create 可能照样完成，见 `createError(_:)`。
+    public static let defaultCreateTimeout: Duration = .seconds(300)
 
     /// usage enrichment 的**全局预算**（★R3/★R4/★R5，见 `VolumeUsageCollector`）。
     /// 与 per-call `timeout` 是两个尺度：后者钉单卷，前者钉整场。
@@ -406,7 +407,7 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
                 try await upstream.createContainer(inputs)
             }
         } catch {
-            throw await errors.map(error, containerID: nil)
+            throw await createError(error)
         }
 
         // 上游无 API 稳定性承诺（R1）：回来的 id 映不回 domain → 响亮地失败，不静默。
@@ -449,7 +450,7 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
                 try await upstream.createFromConfiguration(sanitized)
             }
         } catch {
-            throw await errors.map(error, containerID: nil)
+            throw await createError(error)
         }
 
         // 上游无 API 稳定性承诺（R1）：回来的 id 映不回 domain → 响亮失败，不静默。
@@ -550,10 +551,18 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
             switch error {
             case .containerNotFound:
                 return false
-            case .runtimeUnavailable, .operationFailed, .mountSourceUnavailable:
+            case .runtimeUnavailable, .operationFailed, .mountSourceUnavailable, .outcomeUnknown:
                 throw error
             }
         }
+    }
+
+    /// create / clone 的错误映射：先走常规 R14 映射（进程表说 down 就是 `.runtimeUnavailable`）；
+    /// 运行时还在而我们只是**等超时了**，结果未知——`XPCTimeout` 不等在途调用，容器可能之后照样建出来 → `.outcomeUnknown`。
+    private func createError(_ error: any Error) async -> RuntimeError {
+        let mapped = await errors.map(error, containerID: nil)
+        guard error is XPCTimeout.TimedOut, case .operationFailed(let reason) = mapped else { return mapped }
+        return .outcomeUnknown(reason: reason)
     }
 
     private func fetch(_ id: ContainerID) async throws(RuntimeError) -> ContainerSnapshot {

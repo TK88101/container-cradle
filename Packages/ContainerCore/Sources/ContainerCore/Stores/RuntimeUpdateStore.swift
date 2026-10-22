@@ -41,7 +41,18 @@ public final class RuntimeUpdateStore {
         case otherInstanceActive
     }
 
-    public private(set) var state: State = .idle
+    public private(set) var state: State = .idle {
+        didSet {
+            // `recheckFailure` 的唯一清零规则（Plan 2026-10-21 §2.1 R1-8）：离开 available / skipped 就清。
+            switch state {
+            case .available, .skipped: break
+            default: recheckFailure = nil
+            }
+        }
+    }
+    /// 检查失败、但手上还持有之前查到的 release（回退到 `.available` / `.skipped`）时，这次没能重新确认的原因。
+    /// 只在回退时置值；`state` 离开 available / skipped 即清零（每次检查先进 `.checking`，所以成功检查回来时它已是 nil）。
+    public internal(set) var recheckFailure: CheckFailure?
     /// 当前阶段从什么时候开始（UI 显示已用时间：真下载 118 MB 实测 206 秒，F24 / 进度记录）。
     public private(set) var stageStartedAt: Date?
     /// 最近一次读到的已装版本（A9 的「未经测试」提示用）。
@@ -323,15 +334,44 @@ public final class RuntimeUpdateStore {
             return
         }
         guard !isBusy else { return }
+        // 进 `.checking` 之前取：之后 state 就不再持有它了。作为参数传下去，不存成员（单飞 + op 号保证一次只一个检查）。
+        let held = HeldRelease(state)
         let op = beginOperation(.checking)
         manualRequested = trigger == .manual
         task = Task {
-            await self.runCheck(op: op)
+            await self.runCheck(op: op, held: held)
             self.operationEnded()
         }
     }
 
-    private func runCheck(op: Int) async {
+    /// 检查开始前手上持有的 release（`.available` / `.skipped`）。检查失败时回退到它（Plan 2026-10-21 §2.1）。
+    private struct HeldRelease {
+        let release: RuntimeRelease
+        let wasSkipped: Bool
+
+        init?(_ state: State) {
+            switch state {
+            case .available(_, let release): self.release = release; wasSkipped = false
+            case .skipped(_, let release): self.release = release; wasSkipped = true
+            default: return nil
+            }
+        }
+    }
+
+    /// 检查失败的唯一出口。持有 release 且这一刻读到的已装版本仍低于它 → 回退（`installed` 用新读的值，D-A1），
+    /// 不发通知、不自动开装（D-A2）；否则照原行为 `.checkFailed`。
+    private func failCheck(_ failure: CheckFailure, held: HeldRelease?, installed: RuntimeVersion) {
+        guard let held, installed < held.release.version else {
+            state = .checkFailed(failure)
+            return
+        }
+        state = held.wasSkipped
+            ? .skipped(installed: installed, release: held.release)
+            : .available(installed: installed, release: held.release)
+        recheckFailure = failure
+    }
+
+    private func runCheck(op: Int, held: HeldRelease?) async {
         let installedResult = await environment.commands.installedVersion()
         // 检查不算 committed，退出会取消我们：之后什么都不写、不再往下走（R7）。
         guard !Task.isCancelled else { return }
@@ -349,7 +389,7 @@ public final class RuntimeUpdateStore {
         }
 
         if let until = preferences.rateLimitedUntil, environment.now() < until {
-            apply(op) { self.state = .checkFailed(.rateLimited(until: until)) }
+            apply(op) { self.failCheck(.rateLimited(until: until), held: held, installed: installed) }
             return
         }
 
@@ -360,9 +400,9 @@ public final class RuntimeUpdateStore {
         switch result {
         case .rateLimited(let until):
             preferences.rateLimitedUntil = until
-            state = .checkFailed(.rateLimited(until: until))
+            failCheck(.rateLimited(until: until), held: held, installed: installed)
         case .failed(let failure):
-            state = .checkFailed(.release(failure))
+            failCheck(.release(failure), held: held, installed: installed)
         case .release(let release):
             preferences.lastSuccessfulCheck = environment.now()
             preferences.rateLimitedUntil = nil
