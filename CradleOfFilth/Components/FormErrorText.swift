@@ -1,3 +1,4 @@
+import ContainerCore
 import SwiftUI
 
 /// 表单/窗口内的一行错误红字（simcodex R1 收敛：Create/Clone 两个新窗口原各持一份
@@ -16,5 +17,34 @@ struct FormErrorText: View {
             .foregroundStyle(.red)
             .fixedSize(horizontal: false, vertical: true)
             .textSelection(.enabled)
+    }
+}
+
+/// 新建 / 克隆提交进行中的提示行（Day 25，Plan 2026-10-22 §2.4）：满 30 s「仍在进行」、超时后「等待结果」。
+/// 文案与判定全在 core 的 `ContainerCreationPresentation.progressNote`（可测）；这里只负责每秒重算一次。
+///
+/// - `.periodic` 而不是 `.explicit`：Day 24 B 实测弹窗里 `.explicit` 过点不重绘（Plan 2026-10-21 附录 B）。
+/// - 闭包内显式 `VStack(alignment: .leading)`：多行时默认居中包裹会把行挤到中间（同上）。
+/// - 调用方只在 `isBusy` 时挂它，窗口关了不渲染，periodic 的代价可忽略。
+struct CreationProgressNote: View {
+
+    let isConfirming: Bool
+    let submittedAt: Date?
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            VStack(alignment: .leading) {
+                if let note = ContainerCreationPresentation.progressNote(
+                    isConfirming: isConfirming,
+                    submittedAt: submittedAt,
+                    now: context.date
+                ) {
+                    Text(note)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
     }
 }

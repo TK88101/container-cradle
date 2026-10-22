@@ -142,7 +142,7 @@ struct CloneContainerWindowView: View {
 
         Section {
             HStack {
-                if store.phase == .submitting {
+                if store.phase.isBusy {
                     ProgressView()
                         .controlSize(.small)
                 }
@@ -154,7 +154,11 @@ struct CloneContainerWindowView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 // disabled 只是体验层（真防线是 store 的单飞门）。
-                .disabled(store.phase == .submitting)
+                .disabled(store.phase.isBusy)
+            }
+
+            if store.phase.isBusy {
+                CreationProgressNote(isConfirming: store.phase == .confirming, submittedAt: store.submittedAt)
             }
 
             if case .failed(let failure) = store.phase {
@@ -174,7 +178,7 @@ struct CloneContainerWindowView: View {
             store.reset()
             dismiss()
 
-        case .editing, .submitting, .failed:
+        case .editing, .submitting, .confirming, .failed:
             break   // 失败留在窗内显示红字；reset 会清掉用户正要看的失败态，不做
         }
     }

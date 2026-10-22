@@ -59,4 +59,17 @@ extension ContainerRuntimeClient where Self: VolumeImageUnimplementedTestDouble 
     func delete(id: ContainerID) throws(RuntimeError) {
         throw .operationFailed(reason: "unimplemented in test double")
     }
+
+    // Day 25（Plan 2026-10-22 T3）：超时后取回结果。这些替身都不测超时取回，默认「什么都取不回」。
+    // 收在这里而不是 `ContainerRuntimeClient` 本体上：live client 与 `FakeContainerRuntimeClient` 看不到它，
+    // 漏实现仍是编译错误（simcodex R1 复用：原先单独一个无条件 extension，绕开了本 marker）。
+
+    func awaitPendingCreation(
+        _ operationID: CreationOperationID,
+        within budget: Duration
+    ) async throws(RuntimeError) -> ContainerID {
+        throw .outcomeUnknown(reason: "test double: no pending creations", pending: nil)
+    }
+
+    func abandonPendingCreation(_ operationID: CreationOperationID) async {}
 }

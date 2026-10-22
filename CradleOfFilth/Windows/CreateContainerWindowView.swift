@@ -241,8 +241,9 @@ struct CreateContainerWindowView: View {
 
     // MARK: - 提交
 
+    /// 含确认中（Day 25）：`.confirming` 期间同样不许再提交。
     private var isSubmitting: Bool {
-        model.creation.phase == .submitting
+        model.creation.phase.isBusy
     }
 
     private func submitSection(fieldError: ContainerCreationForm.FieldError?) -> some View {
@@ -269,6 +270,13 @@ struct CreateContainerWindowView: View {
             // disabled 只是体验层（真防线是 store 的单飞拒绝制）。
             .disabled(fieldError != nil || isSubmitting)
 
+            if isSubmitting {
+                CreationProgressNote(
+                    isConfirming: model.creation.phase == .confirming,
+                    submittedAt: model.creation.submittedAt
+                )
+            }
+
             if case .failed(let failure) = model.creation.phase {
                 FormErrorText(message: ContainerCreationPresentation.message(for: failure))
             }
@@ -294,7 +302,7 @@ struct CreateContainerWindowView: View {
                 await model.containers.refresh()
             }
 
-        case .idle, .submitting:
+        case .idle, .submitting, .confirming:
             break
         }
     }

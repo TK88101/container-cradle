@@ -120,6 +120,8 @@ public struct OSLogSupervisorLog: SupervisorLog {
         case .mountSourceUnavailable: "mountSourceUnavailable"
         case .operationFailed: "operationFailed"
         case .outcomeUnknown: "outcomeUnknown"
+        case .creationInProgress: "creationInProgress"
+        case .creationLimitReached: "creationLimitReached"
         }
     }
 
@@ -132,8 +134,12 @@ public struct OSLogSupervisorLog: SupervisorLog {
             id.rawValue
         case .mountSourceUnavailable(let path):
             path
-        case .operationFailed(let reason), .outcomeUnknown(let reason):
+        case .operationFailed(let reason), .outcomeUnknown(let reason, _):
             reason
+        case .creationInProgress(let name):
+            name
+        case .creationLimitReached(let limit):
+            String(limit)
         }
     }
 }

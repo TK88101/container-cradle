@@ -306,12 +306,22 @@ public enum BoundaryScanner {
         wrapper: String,
         exemptMethods: Set<String>
     ) -> [Violation] {
+        untimedUpstreamCalls(in: source, wrappers: [wrapper], exemptMethods: exemptMethods)
+    }
+
+    /// 同上，但任一 `wrappers` 的闭包都算罩着（Day 25：`coordinator.start` 只交出 operationID，取结果唯一途径 `awaitOutcome` 内含 `XPCTimeout.race`）。
+    public static func untimedUpstreamCalls(
+        in source: String,
+        wrappers: [String],
+        exemptMethods: Set<String>
+    ) -> [Violation] {
+        let wrapper = wrappers.joined(separator: " / ")
         // await [<限定符>.]<…upstream>.<method>(   —— callee 是「名字含 upstream 的独立标识符」，
         // 前面允许一层可选的 `self.` / `foo.` 限定符（否则 `await self.upstream.X` 会漏）。
         let call = try! Regex(
             "await[ \t]+(?:[A-Za-z0-9_]+\\.)?[A-Za-z0-9_]*[Uu]pstream(?![A-Za-z0-9_])\\.([A-Za-z0-9_]+)[ \t]*\\("
         )
-        let wrapperOpener = "\(wrapper)("
+        let wrapperOpeners = wrappers.map { "\($0)(" }
 
         var depth = 0
         var wrapperScopes: [Int] = []   // 当前打开着的 wrapper 闭包所在的花括号深度
@@ -335,7 +345,7 @@ public enum BoundaryScanner {
             }
 
             // 2) 再按本行的花括号更新深度与 wrapper 作用域栈。
-            var pendingWrapper = !commentLine && line.contains(wrapperOpener)
+            var pendingWrapper = !commentLine && wrapperOpeners.contains { line.contains($0) }
             for character in line {
                 if character == "{" {
                     depth += 1

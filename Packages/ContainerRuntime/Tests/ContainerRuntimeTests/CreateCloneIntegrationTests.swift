@@ -239,4 +239,47 @@ struct CreateCloneIntegrationTests {
             try await client.delete(id: ghost)
         }
     }
+
+    // MARK: - ⑤ Day 25：超时之后上游照样建成 → 凭 operationID 取回（Plan 2026-10-22 T8）
+
+    /// 真 XPC 下的外部契约：create 超时报 `.outcomeUnknown(pending:)`，那次调用之后真的把容器建出来，
+    /// 凭 operationID 取回的 id 与 `list()` 一致。用 DEBUG 延迟把「超时之后才发出」变成确定时序（codex R1-P2：
+    /// 不靠毫秒级 createTimeout 撞运气）。「同名后来者不调上游」只在 fake 单测里证——真 XPC 看不见「没调」（codex R1-P2）。
+    #if DEBUG
+    @Test("⑤ create 超时 → 上游之后照样建成 → awaitPendingCreation 取回的 id 在 list 里")
+    func timedOutCreateIsRecoveredByOperationID() async throws {
+        try await sweepLeftovers()
+        try ensureTestImagePresent()
+
+        let client = LiveContainerRuntimeClient(createTimeout: .milliseconds(500), debugCreateDelay: .seconds(2))
+        let name = try ContainerName(uniqueName())
+        let image = try #require(ImageRef(Self.testImage))
+        let spec = try ContainerCreationSpec(name: name, image: image, volumeMounts: [], environment: [])
+
+        do {
+            let operationID: CreationOperationID
+            do {
+                _ = try await client.create(spec)
+                Issue.record("预期 create 超时（延迟 2 s > 超时 0.5 s）")
+                return
+            } catch {
+                guard case .outcomeUnknown(_, let pending?) = error else {
+                    Issue.record("预期 outcomeUnknown(pending:)，实际 \(error)")
+                    return
+                }
+                operationID = pending
+            }
+
+            let id = try await client.awaitPendingCreation(operationID, within: .seconds(120))
+            #expect(id.rawValue == name.value)
+            let listed = try await client.list()
+            #expect(listed.contains { $0.id == id && $0.state == .stopped }, "取回的 id 不在 list 里或不是 stopped")
+
+            try await client.delete(id: id)
+        } catch {
+            _ = try? cli(["delete", "--force", name.value])   // CLI 逃生舱兜底（④）
+            throw error
+        }
+    }
+    #endif
 }

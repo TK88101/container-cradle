@@ -160,3 +160,9 @@
 "Reason: %@. Open the menu and click Start Runtime to try again (on first use this also installs the kernel)." = "原因：%@。打开菜单点「启动运行时」即可重试（首次使用时还会安装内核）。";
 "DNS aliases are not copied to the clone" = "克隆不会带上 DNS 别名";
 "This is taking longer than expected and may still finish. Check the container list in the menu before trying again." = "比预期慢，可能仍会完成。重试之前，请先在菜单的容器列表里确认。";
+
+/* Day 25：本 App 自己挡下的创建（同名在途 / 在途数到上限） */
+"A container named %@ is already being created in this app. The name stays reserved until that request returns or you reopen the app. Check the container list in the menu before trying again." = "这个 App 里已经在创建名为 %@ 的容器。在那次请求返回或重新打开 App 之前，这个名字会一直被占用。重试之前，请先在菜单的容器列表里确认。";
+"%lld container creations are still in progress. Wait for them to finish, then try again. If this persists, reopen the app." = "还有 %lld 个容器正在创建。请等它们完成后再试。如果一直这样，请重新打开 App。";
+"The runtime has not answered yet. Waiting for the result…" = "运行时还没有回应，正在等待结果…";
+"Still working. The first container after a runtime update can take a few minutes." = "仍在进行。运行时更新后第一次创建容器可能需要几分钟。";

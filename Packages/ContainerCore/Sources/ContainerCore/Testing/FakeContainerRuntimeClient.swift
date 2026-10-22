@@ -59,6 +59,9 @@ public actor FakeContainerRuntimeClient: ContainerRuntimeClient {
         case createClone(source: ContainerID, name: ContainerName)
         case pullImage(ImageRef)
         case deleteContainer(ContainerID)
+        // Day 25
+        case awaitPendingCreation(CreationOperationID)
+        case abandonPendingCreation(CreationOperationID)
     }
 
     /// 用数组而非字典存：`list()` 的返回顺序必须**确定**，
@@ -296,6 +299,52 @@ public actor FakeContainerRuntimeClient: ContainerRuntimeClient {
             throw .operationFailed(reason: "image '\(reference.rawValue)' not found")
         }
         images.remove(at: index)
+    }
+
+    // MARK: - Day 25：取回已超时的创建结果
+
+    /// 每个 operationID 的「晚到结果」。成功时把那个容器（stopped）落进内存再返回它的 id——
+    /// 模拟「超时之后上游照样建出来了」。没登记的 id ⇒ `pending: nil`（取不回）。
+    private var pendingCreationOutcomes: [CreationOperationID: Result<Container, RuntimeError>] = [:]
+    private var pendingAwaitsHeld = false
+    private var heldPendingAwaits: [CheckedContinuation<Void, Never>] = []
+
+    public func setPendingCreationOutcome(_ operationID: CreationOperationID, _ outcome: Result<Container, RuntimeError>) {
+        pendingCreationOutcomes[operationID] = outcome
+    }
+
+    /// 让 `awaitPendingCreation` 停在门后——测「确认中」这一段（单飞门、进行中提示）。
+    public func holdPendingCreationAwaits() { pendingAwaitsHeld = true }
+
+    public func releasePendingCreationAwaits() {
+        pendingAwaitsHeld = false
+        let held = heldPendingAwaits
+        heldPendingAwaits = []
+        held.forEach { $0.resume() }
+    }
+
+    public func awaitPendingCreation(
+        _ operationID: CreationOperationID,
+        within budget: Duration
+    ) async throws(RuntimeError) -> ContainerID {
+        calls.append(.awaitPendingCreation(operationID))
+        if pendingAwaitsHeld {
+            await withCheckedContinuation { heldPendingAwaits.append($0) }
+        }
+        switch pendingCreationOutcomes.removeValue(forKey: operationID) {
+        case .success(let container):
+            if !containers.contains(where: { $0.id == container.id }) { containers.append(container) }
+            return container.id
+        case .failure(let error):
+            throw error
+        case nil:
+            throw .outcomeUnknown(reason: "fake: no pending outcome", pending: nil)
+        }
+    }
+
+    public func abandonPendingCreation(_ operationID: CreationOperationID) {
+        calls.append(.abandonPendingCreation(operationID))
+        pendingCreationOutcomes[operationID] = nil
     }
 
     // MARK: - Day 16：创建 / 克隆 / pull / 删除容器

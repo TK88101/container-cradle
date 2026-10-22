@@ -1,3 +1,4 @@
+import Foundation
 import Observation
 
 /// 「以此为模板新建」（clone）的加载 + 提交态机（Day 16 T9.3，能力 B）。**纯逻辑住 core、可测**。
@@ -16,6 +17,11 @@ import Observation
 /// `reset()` 才能再建，否则复用旧 `newName`/`environmentOverride` 会二次 create。令牌是 `phase`：
 /// **检查 + 置 `.submitting` 是同步原子段**（`ContainerName` 校验同步、无 await），中间不可被重入插入
 /// （★本仓 `@MainActor` 在 await 处可重入，栽过三次）。
+///
+/// ## 超时后的确认段（Day 25，Plan 2026-10-22 §2.1 / T5）
+///
+/// 同 `ContainerCreationStore`：create 抛 `.outcomeUnknown(pending: operationID)` ⇒ `.confirming`，
+/// 凭 operationID 取回那一次的真实结果（`PendingCreationConfirmation`）。clone 不启动，没有启动意图要补。
 @MainActor
 @Observable
 public final class ContainerCloneStore {
@@ -29,8 +35,18 @@ public final class ContainerCloneStore {
     public enum Phase: Sendable, Equatable {
         case editing
         case submitting
+        /// clone 超时，正在取回那一次的真实结果（Day 25）。
+        case confirming
         case succeeded(ContainerID)
         case failed(SubmitFailure)
+
+        /// 提交在途（含确认中）。单飞门、按钮 disabled、进行中提示都看它。
+        public var isBusy: Bool {
+            switch self {
+            case .submitting, .confirming: true
+            case .editing, .succeeded, .failed: false
+            }
+        }
     }
 
     public enum SubmitFailure: Sendable, Equatable {
@@ -46,6 +62,9 @@ public final class ContainerCloneStore {
     public private(set) var phase: Phase = .editing
     public var newName: String = ""
 
+    /// 本次提交的开始时刻。不变式：`phase.isBusy ⇔ submittedAt != nil`（Day 25）。
+    public private(set) var submittedAt: Date?
+
     /// nil = 用户未编辑 → 提交原样克隆；非 nil = 用户编辑过的覆盖 env（值仍 `SecretString`）。
     public private(set) var environmentOverride: [EnvironmentVariable]?
 
@@ -54,9 +73,13 @@ public final class ContainerCloneStore {
     /// 单调递增的加载世代——`loadTemplate()` 的回写令牌（见该方法文档）。
     private var loadGeneration = 0
 
-    public init(source: ContainerID, client: any ContainerRuntimeClient) {
+    /// **同步**时间源：与单飞门的「检查 + 置位」同在一段无 `await` 的代码里取（codex R2-P1）。
+    private let now: () -> Date
+
+    public init(source: ContainerID, client: any ContainerRuntimeClient, now: @escaping () -> Date = Date.init) {
         self.source = source
         self.client = client
+        self.now = now
     }
 
     /// 加载 clone 预填模板（纯 domain，app 不碰上游 configuration）。
@@ -94,7 +117,7 @@ public final class ContainerCloneStore {
     public func submit() async -> Bool {
         // 单飞门：检查 + 后续置位是同步原子段，await 之前完成——这是防线（codex #7）。
         switch phase {
-        case .submitting, .succeeded:
+        case .submitting, .confirming, .succeeded:
             return false
         case .editing, .failed:
             break
@@ -114,31 +137,47 @@ public final class ContainerCloneStore {
         }
 
         phase = .submitting   // 置位在最后一个同步校验之后、首个 await 之前 → 重入拒
+        submittedAt = now()
 
         let existing: [Container]
         do {
             existing = try await client.list()
         } catch {
-            phase = .failed(.precheckFailed(error))
+            settle(.failed(.precheckFailed(error)))
             return true
         }
 
         if let clash = existing.first(where: { $0.id.rawValue == name.value }) {
-            phase = .failed(.nameAlreadyExists(clash.id))   // 命中即拒，不调 create
+            settle(.failed(.nameAlreadyExists(clash.id)))   // 命中即拒，不调 create
             return true
         }
 
         do {
             let id = try await client.create(clonedFrom: source, name: name, envOverride: environmentOverride)
-            phase = .succeeded(id)
+            settle(.succeeded(id))
         } catch {
-            phase = .failed(.createFailed(error))
+            guard case .outcomeUnknown(_, let operationID?) = error else {
+                settle(.failed(.createFailed(error)))
+                return true
+            }
+            // 超时：凭 operationID 取回那一次的真实结果（Day 25）。
+            phase = .confirming
+            switch await PendingCreationConfirmation.confirm(operationID, client: client) {
+            case .success(let id): settle(.succeeded(id))
+            case .failure(let confirmError): settle(.failed(.createFailed(confirmError)))
+            }
         }
         return true
     }
 
+    /// 进终态，同时清掉 `submittedAt`（守不变式 `isBusy ⇔ submittedAt != nil`）。
+    private func settle(_ terminal: Phase) {
+        phase = terminal
+        submittedAt = nil
+    }
+
     /// succeeded / failed 后回到可编辑态供再建（codex #7）。保留草稿（用户可改名重提交）。
     public func reset() {
-        phase = .editing
+        settle(.editing)
     }
 }

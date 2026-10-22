@@ -37,6 +37,29 @@ enum RuntimeErrorPresentation {
         case .outcomeUnknown:
             // 不透传 reason：「XPC call timed out」读起来就是失败，而这里要说的恰恰是「可能还没失败」。
             outcomeUnknownText(locale: locale)
+        case .creationInProgress(let name):
+            String(
+                coreLocalized:
+                    "A container named \(name) is already being created in this app. The name stays reserved until that request returns or you reopen the app. Check the container list in the menu before trying again.",
+                locale: locale
+            )
+        case .creationLimitReached(let limit):
+            String(
+                coreLocalized:
+                    "\(limit) container creations are still in progress. Wait for them to finish, then try again. If this persists, reopen the app.",
+                locale: locale
+            )
+        }
+    }
+
+    /// create / clone 提交**不算失败**时的完整文案（结果未定 / 本 App 挡下没发出，Day 24–25）；其余返回 nil，
+    /// 由调用方加 "Create failed:" / "Clone failed:" 前缀。穷尽 switch：新 case 必须在这里表态它算不算「失败」。
+    static func notFailedCreationText(_ error: RuntimeError, locale: Locale) -> String? {
+        switch error {
+        case .outcomeUnknown, .creationInProgress, .creationLimitReached:
+            detail(error, locale: locale)
+        case .runtimeUnavailable, .containerNotFound, .mountSourceUnavailable, .operationFailed:
+            nil
         }
     }
 

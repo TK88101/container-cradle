@@ -100,10 +100,13 @@ protocol UpstreamClient: Sendable {
     func stockInfraImageReferences() -> Set<String>
 }
 
-/// 真正打 XPC 的那一层。**一个 `if` 都没有**——判断力全在上层。
+/// 真正打 XPC 的那一层。除下面那一处仅 DEBUG 的延迟外，**一个 `if` 都没有**——判断力全在上层。
 ///
 /// 这是本 package 唯一的覆盖率豁免项，理由是它拿不到确定性输入（需要真 apiserver）。
 /// 豁免的边界就到这里为止：它上面每一个分支都必须被测。
+///
+/// **唯一例外（仅 DEBUG，Day 25）**：`debugCreateDelay` 让 create / clone 在发 XPC 前先 sleep，供真机验收确定地复现
+/// 「超时之后才建成」。Release 构建里这个字段和分支都不存在；它只由集成测试 ⑤（`CreateCloneIntegrationTests`，`INTEGRATION=1`）覆盖。
 ///
 /// ## ★★★ 连接**绝不跨代**（Day 7 的 M3 验收红了才挖出来的 P0）
 ///
@@ -131,6 +134,20 @@ struct LiveUpstreamClient: UpstreamClient {
 
     /// **每次都是新的。** 见上：旧连接在运行时换代后是终态失效的死连接。
     private var client: ContainerClient { ContainerClient() }
+
+    #if DEBUG
+    /// 仅 DEBUG 真机验收：发 create 之前先等这么久（Day 25，Plan 2026-10-22 T7）。落在 create 的 race 之内，
+    /// 于是能确定地复现「超时之后才建成」。放在这一层（最贴近 XPC）而不是 live client：Release 里零痕迹，create / clone 自动都覆盖。
+    var debugCreateDelay: Duration? = nil
+    #endif
+
+    /// Release 里是空函数（条件编译收在函数体内，调用点不必各写一遍 `#if`）。
+    private func applyDebugCreateDelay() async {
+        #if DEBUG
+        guard let debugCreateDelay else { return }
+        try? await Task.sleep(for: debugCreateDelay)
+        #endif
+    }
 
     /// create adapter 的 `containerConfigFromFlags` 要一个 `Logger`。GUI 无终端，label 只用于上游内部诊断。
     private static let log = Logger(label: "cof.container-runtime")
@@ -169,6 +186,7 @@ struct LiveUpstreamClient: UpstreamClient {
     }
 
     func createContainer(_ inputs: CreationMapper.CreateInputs) async throws -> String {
+        await applyDebugCreateDelay()
         // 整段序列共用**同一个**新建的 client（连接不跨代，见类型注释）。
         let client = self.client
         let systemConfig = try await Self.loadSystemConfig()
@@ -209,6 +227,7 @@ struct LiveUpstreamClient: UpstreamClient {
     }
 
     func createFromConfiguration(_ configuration: ContainerConfiguration) async throws -> String {
+        await applyDebugCreateDelay()
         let client = self.client
         // host 级默认 kernel（arch 匹配、与具体容器无关）——比重跑 containerConfigFromFlags 干净得多。
         let kernel = try await ClientKernel.getDefaultKernel(for: SystemPlatform.current)

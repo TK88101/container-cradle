@@ -69,7 +69,7 @@ final class AppModel {
     /// 一个「用户可以手改」的配置文件，App 不告诉他在哪，那句话就是空话。
     var whitelistURL: URL { whitelistStore.url }
 
-    init(client: any ContainerRuntimeClient = LiveContainerRuntimeClient()) {
+    init(client: any ContainerRuntimeClient = AppModel.makeDefaultClient()) {
         let store = WhitelistStore.default()
         let status = SupervisorStatusStore()
 
@@ -365,6 +365,23 @@ final class AppModel {
         }
         #endif
         return RuntimeUpdateScheduler.initialDelay
+    }
+
+    /// 默认就是真运行时。仅 DEBUG：启动参数 `-COFCreateTimeoutSeconds <n>` 缩短 create 超时、
+    /// `-COFUpstreamCreateDelaySeconds <n>` 让上游 create 先等 n 秒——真机验收要一个**确定的**「超时之后才建成」
+    /// （Day 25，Plan 2026-10-22 T7 / §4.2）。Release 构建里这两个参数不生效。
+    static func makeDefaultClient() -> any ContainerRuntimeClient {
+        #if DEBUG
+        let timeout = launchArgument("COFCreateTimeoutSeconds").flatMap(Int.init)
+        let delay = launchArgument("COFUpstreamCreateDelaySeconds").flatMap(Int.init)
+        if timeout != nil || delay != nil {
+            return LiveContainerRuntimeClient(
+                createTimeout: timeout.map { .seconds($0) } ?? LiveContainerRuntimeClient.defaultCreateTimeout,
+                debugCreateDelay: delay.map { .seconds($0) }
+            )
+        }
+        #endif
+        return LiveContainerRuntimeClient()
     }
 
     #if DEBUG

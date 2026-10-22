@@ -187,9 +187,11 @@ struct RuntimeBoundaryTests {
             "找不到 LiveContainerRuntimeClient.swift"
         )
 
+        // Day 25：create / clone 的上游调用跑在 `coordinator.start` 的 Task 里——内层**不能**再套 race，
+        // 否则超时就丢掉晚到的结果（Plan 2026-10-22 §2.2）。它的界是结构性的，见 `CreationCoordinator.start`。
         let offenders = BoundaryScanner.untimedUpstreamCalls(
             in: liveClient.contents,
-            wrapper: "XPCTimeout.race",
+            wrappers: ["XPCTimeout.race", "coordinator.start"],
             exemptMethods: Self.upstreamMethodsExemptFromTimeout
         )
 

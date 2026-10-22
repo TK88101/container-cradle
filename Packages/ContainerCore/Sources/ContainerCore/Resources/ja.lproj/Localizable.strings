@@ -158,3 +158,9 @@
 "Reason: %@. Open the menu and click Start Runtime to try again (on first use this also installs the kernel)." = "原因：%@。メニューを開いて「ランタイムを起動」を押すと再試行できます（初回はカーネルもインストールします）。";
 "DNS aliases are not copied to the clone" = "DNS エイリアスはクローンにコピーされません";
 "This is taking longer than expected and may still finish. Check the container list in the menu before trying again." = "想定より時間がかかっていますが、まだ完了する可能性があります。もう一度試す前に、メニューのコンテナ一覧で確認してください。";
+
+/* Day 25：本 App 自己挡下的创建（同名在途 / 在途数到上限） */
+"A container named %@ is already being created in this app. The name stays reserved until that request returns or you reopen the app. Check the container list in the menu before trying again." = "%@ という名前のコンテナは、このアプリですでに作成中です。その要求が戻るかアプリを開き直すまで、この名前は使えません。もう一度試す前に、メニューのコンテナ一覧で確認してください。";
+"%lld container creations are still in progress. Wait for them to finish, then try again. If this persists, reopen the app." = "%lld 件のコンテナ作成がまだ進行中です。完了してからもう一度お試しください。解消しない場合は、アプリを開き直してください。";
+"The runtime has not answered yet. Waiting for the result…" = "ランタイムからまだ応答がありません。結果を待っています…";
+"Still working. The first container after a runtime update can take a few minutes." = "処理中です。ランタイムを更新した直後の最初のコンテナ作成は、数分かかることがあります。";

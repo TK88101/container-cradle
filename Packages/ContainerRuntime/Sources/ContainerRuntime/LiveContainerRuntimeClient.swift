@@ -39,12 +39,15 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
     private let createTimeout: Duration
 
     /// 见上。默认 300s：运行时刚升级后的**第一次** create 要冷启动（Day 24 实测 clone 257s、create >120s；
-    /// 热跑 0.2s）。超时也不等于失败——在途的 create 可能照样完成，见 `createError(_:)`。
+    /// 热跑 0.2s）。超时也不等于失败——在途的 create 可能照样完成，见 `awaitCreation(_:)`。
     public static let defaultCreateTimeout: Duration = .seconds(300)
 
     /// usage enrichment 的**全局预算**（★R3/★R4/★R5，见 `VolumeUsageCollector`）。
     /// 与 per-call `timeout` 是两个尺度：后者钉单卷，前者钉整场。
     private let usageBudget: Duration
+
+    /// create / clone 的在途登记处（Day 25）。**引用类型**：struct 的每个 copy 共享同一份占名（codex R1-P1）。
+    let coordinator = CreationCoordinator()
 
     /// - Parameter prober: 运行时死活的**唯一权威**（R14）。错误映射要问它，
     ///   而不是去猜 XPC 错误码的意思。
@@ -63,6 +66,18 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
             createTimeout: createTimeout
         )
     }
+
+    #if DEBUG
+    /// 仅 DEBUG：真机验收入口（启动参数 `-COFCreateTimeoutSeconds` / `-COFUpstreamCreateDelaySeconds`，见 `AppModel`）。
+    public init(createTimeout: Duration, debugCreateDelay: Duration?) {
+        self.init(
+            upstream: LiveUpstreamClient(debugCreateDelay: debugCreateDelay),
+            paths: FileSystemPathChecker(),
+            prober: ApiserverProber(),
+            createTimeout: createTimeout
+        )
+    }
+    #endif
 
     /// 测试入口：注入替身。`internal` —— 上游类型不会因此漏出 package。
     init(
@@ -398,23 +413,19 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
 
     /// 全新创建（能力 A）。判断在这一层：spec→inputs 纯映射（`CreationMapper`，已测）+ XPCTimeout +
     /// 错误映射 + id 回映。装配与 create 的副作用捆在 `upstream.createContainer`（不可测的直线段）。
+    ///
+    /// Day 25：经 `CreationCoordinator` 占名（同名在途 ⇒ `.creationInProgress`，不调上游），超时带回 operationID。
     public func create(_ spec: ContainerCreationSpec) async throws(RuntimeError) -> ContainerID {
         let inputs = CreationMapper.inputs(for: spec)
-
-        let rawID: String
-        do {
-            rawID = try await XPCTimeout.race(after: createTimeout) {
-                try await upstream.createContainer(inputs)
+        let operationID = try coordinator.start(name: spec.name.value) { [upstream, errors] in
+            do {
+                let rawID = try await upstream.createContainer(inputs)
+                return Self.mapCreatedID(rawID, what: "a container")
+            } catch {
+                return .failure(await errors.map(error, containerID: nil))
             }
-        } catch {
-            throw await createError(error)
         }
-
-        // 上游无 API 稳定性承诺（R1）：回来的 id 映不回 domain → 响亮地失败，不静默。
-        guard let id = ContainerID(rawID) else {
-            throw RuntimeError.operationFailed(reason: "Upstream created a container with an unmappable id: \(rawID)")
-        }
-        return id
+        return try await awaitCreation(operationID)
     }
 
     /// clone 预填（T6.4）：`get(source)` → `SnapshotMapper.cloneTemplate` 提 image+env+挂载摘要。
@@ -436,28 +447,53 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
         name: ContainerName,
         envOverride: [EnvironmentVariable]?
     ) async throws(RuntimeError) -> ContainerID {
-        let snapshot = try await fetch(source)
-        let sanitized = CreationMapper.sanitizeForClone(
-            snapshot.configuration,
-            newID: name.value,
-            envOverride: envOverride,
-            creationDate: Date()
-        )
-
-        let rawID: String
-        do {
-            rawID = try await XPCTimeout.race(after: createTimeout) {
-                try await upstream.createFromConfiguration(sanitized)
+        // 占名在 fetch 源容器**之前**（codex R1-P1）：fetch 期间同名的 fresh create 也要被挡住。
+        // fetch 自带 per-call XPCTimeout；它与上游 create 都在同一个 Task 里，整段受 createTimeout 约束。
+        let operationID = try coordinator.start(name: name.value) { [self] in
+            let snapshot: ContainerSnapshot
+            do throws(RuntimeError) {
+                snapshot = try await fetch(source)
+            } catch {
+                return .failure(error)
             }
-        } catch {
-            throw await createError(error)
+            let sanitized = CreationMapper.sanitizeForClone(
+                snapshot.configuration,
+                newID: name.value,
+                envOverride: envOverride,
+                creationDate: Date()
+            )
+            do {
+                let rawID = try await upstream.createFromConfiguration(sanitized)
+                return Self.mapCreatedID(rawID, what: "a clone")
+            } catch {
+                return .failure(await errors.map(error, containerID: nil))
+            }
         }
+        return try await awaitCreation(operationID)
+    }
 
-        // 上游无 API 稳定性承诺（R1）：回来的 id 映不回 domain → 响亮失败，不静默。
-        guard let id = ContainerID(rawID) else {
-            throw RuntimeError.operationFailed(reason: "Upstream created a clone with an unmappable id: \(rawID)")
+    public func awaitPendingCreation(
+        _ operationID: CreationOperationID,
+        within budget: Duration
+    ) async throws(RuntimeError) -> ContainerID {
+        switch await coordinator.awaitOutcome(operationID, within: budget) {
+        case .delivered(let outcome):
+            return try outcome.get()
+        case .stillRunning:
+            throw .outcomeUnknown(reason: "The create request has not returned yet", pending: operationID)
+        case .unavailable:
+            throw Self.pendingResultGone
         }
-        return id
+    }
+
+    /// 结果已取不回（被取走 / 被放弃 / 被淘汰 / 不是这里登记的）。`pending: nil`：没有可再等的东西。
+    private static let pendingResultGone = RuntimeError.outcomeUnknown(
+        reason: "The result of this create request is no longer available",
+        pending: nil
+    )
+
+    public func abandonPendingCreation(_ operationID: CreationOperationID) async {
+        coordinator.abandon(operationID)
     }
 
     /// image pull（§3.3 / T6.2）。**判断在这一层**：上游反向 XPC 分批投递事件 →
@@ -551,18 +587,42 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
             switch error {
             case .containerNotFound:
                 return false
-            case .runtimeUnavailable, .operationFailed, .mountSourceUnavailable, .outcomeUnknown:
+            case .runtimeUnavailable, .operationFailed, .mountSourceUnavailable, .outcomeUnknown,
+                 .creationInProgress, .creationLimitReached:
                 throw error
             }
         }
     }
 
-    /// create / clone 的错误映射：先走常规 R14 映射（进程表说 down 就是 `.runtimeUnavailable`）；
-    /// 运行时还在而我们只是**等超时了**，结果未知——`XPCTimeout` 不等在途调用，容器可能之后照样建出来 → `.outcomeUnknown`。
-    private func createError(_ error: any Error) async -> RuntimeError {
-        let mapped = await errors.map(error, containerID: nil)
-        guard error is XPCTimeout.TimedOut, case .operationFailed(let reason) = mapped else { return mapped }
-        return .outcomeUnknown(reason: reason)
+    /// 等 coordinator 里那次 create / clone，最多 `createTimeout`——与超时后的取回用**同一个**有界原语
+    /// `CreationCoordinator.awaitOutcome`（为何有界见 `CreationCoordinator.start`）。
+    ///
+    /// - 拿到结果 ⇒ 已被取走（不留待领），直接交出。
+    /// - 没等到（超时或调用方被取消）：按「等超时了」走常规 R14 映射——进程表说 down 就是 `.runtimeUnavailable`，
+    ///   此时没人会来领 ⇒ 放弃登记（名字仍挡到调用结束）；运行时还在 ⇒ `.outcomeUnknown(pending: operationID)`，
+    ///   调用方凭它取回真实结果（Day 25）。
+    private func awaitCreation(_ operationID: CreationOperationID) async throws(RuntimeError) -> ContainerID {
+        switch await coordinator.awaitOutcome(operationID, within: createTimeout) {
+        case .delivered(let outcome):
+            return try outcome.get()
+        case .stillRunning:
+            let mapped = await errors.map(XPCTimeout.TimedOut(after: createTimeout), containerID: nil)
+            guard case .operationFailed(let reason) = mapped else {
+                coordinator.abandon(operationID)
+                throw mapped
+            }
+            throw .outcomeUnknown(reason: reason, pending: operationID)
+        case .unavailable:
+            throw Self.pendingResultGone
+        }
+    }
+
+    /// 上游无 API 稳定性承诺（R1）：回来的 id 映不回 domain → 响亮地失败，不静默。
+    private static func mapCreatedID(_ rawID: String, what: String) -> CreationCoordinator.Outcome {
+        guard let id = ContainerID(rawID) else {
+            return .failure(.operationFailed(reason: "Upstream created \(what) with an unmappable id: \(rawID)"))
+        }
+        return .success(id)
     }
 
     private func fetch(_ id: ContainerID) async throws(RuntimeError) -> ContainerSnapshot {

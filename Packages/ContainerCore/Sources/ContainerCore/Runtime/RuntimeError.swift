@@ -59,5 +59,17 @@ public enum RuntimeError: Error, Equatable, Sendable {
     /// 与 `.operationFailed` 分开，界面才不会把「还在建」说成「失败」。supervisor 路径不产生它。
     ///
     /// - Parameter reason: 超时诊断串，只用于展示与日志，绝不用于分类。
-    case outcomeUnknown(reason: String)
+    /// - Parameter pending: 能取回这次结果的操作身份（`ContainerRuntimeClient.awaitPendingCreation`）；
+    ///   nil = 没有可等的东西（已取不回，或本来就不是 create / clone）。Day 25。
+    case outcomeUnknown(reason: String, pending: CreationOperationID? = nil)
+
+    /// 本 App 已有同名的 create / clone 结果未定，**这次没有发出**（Day 25，Plan 2026-10-22 §2.2）。
+    /// 名字要一直挡到那次请求返回（或 App 重开）——放行就可能让两次请求争同一个名字。supervisor 路径不产生它。
+    ///
+    /// - Parameter name: 被占着的容器名，给用户看的。
+    case creationInProgress(name: String)
+
+    /// 本 App 已有 `limit` 个 create / clone 结果未定，**这次没有发出**（Day 25）。
+    /// 客户端自我保护阈值，**不是**运行时故障诊断（codex R6-P2）。supervisor 路径不产生它。
+    case creationLimitReached(limit: Int)
 }

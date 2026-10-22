@@ -75,14 +75,13 @@ public enum ContainerCreationPresentation {
                     "Could not check existing containers, so nothing was created: \(RuntimeErrorPresentation.detail(error, locale: locale))",
                 locale: locale
             )
-        case .createFailed(.outcomeUnknown):
-            // 超时 ≠ 失败：容器可能仍会建出来，不能说 "Create failed"（Day 24）。
-            RuntimeErrorPresentation.outcomeUnknownText(locale: locale)
         case .createFailed(let error):
-            String(
-                coreLocalized: "Create failed: \(RuntimeErrorPresentation.detail(error, locale: locale))",
-                locale: locale
-            )
+            // 超时 ≠ 失败、本 App 挡下没发出 ≠ 失败：不能说 "Create failed"（Day 24–25）。
+            RuntimeErrorPresentation.notFailedCreationText(error, locale: locale)
+                ?? String(
+                    coreLocalized: "Create failed: \(RuntimeErrorPresentation.detail(error, locale: locale))",
+                    locale: locale
+                )
         case .startFailed(let id, let error):
             // **R-CMD 裁定（B 段 Plan §3.1）**：不按 `.operationFailed(reason)` 的内容
             // 嗅探「entrypoint not specified」之类再分支——那是本仓明令禁止的 R14 病，
@@ -95,6 +94,30 @@ public enum ContainerCreationPresentation {
                 locale: locale
             )
         }
+    }
+
+    // MARK: - 提交进行中（Day 25）
+
+    /// 提交满这么久才提示「仍在进行」：热路径一秒内就回来，30 s 足以说明是冷启动那种慢（Day 24 实测 257 s）。
+    static let stillWorkingDelay: TimeInterval = 30
+
+    /// 新建 / 克隆窗口按钮下方的进行中提示（Plan 2026-10-22 §2.4）。`now` 只是渲染 tick；`submittedAt` 才是时间事实。
+    /// `submittedAt == nil`（不在提交中）⇒ 一律 nil——store 的不变式是 `isBusy ⇔ submittedAt != nil`。
+    public static func progressNote(
+        isConfirming: Bool,
+        submittedAt: Date?,
+        now: Date,
+        locale: Locale = .current
+    ) -> String? {
+        guard let submittedAt else { return nil }
+        if isConfirming {
+            return String(coreLocalized: "The runtime has not answered yet. Waiting for the result…", locale: locale)
+        }
+        guard now.timeIntervalSince(submittedAt) >= stillWorkingDelay else { return nil }
+        return String(
+            coreLocalized: "Still working. The first container after a runtime update can take a few minutes.",
+            locale: locale
+        )
     }
 
     // MARK: - clone 确认：aliases 没复制
@@ -143,14 +166,13 @@ public enum ContainerCreationPresentation {
                     "Could not check existing containers, so nothing was created: \(RuntimeErrorPresentation.detail(error, locale: locale))",
                 locale: locale
             )
-        case .createFailed(.outcomeUnknown):
-            // 同 create：超时 ≠ 失败，克隆体可能仍会建出来。
-            RuntimeErrorPresentation.outcomeUnknownText(locale: locale)
         case .createFailed(let error):
-            String(
-                coreLocalized: "Clone failed: \(RuntimeErrorPresentation.detail(error, locale: locale))",
-                locale: locale
-            )
+            // 同 create：结果未定 / 没发出都不是失败。
+            RuntimeErrorPresentation.notFailedCreationText(error, locale: locale)
+                ?? String(
+                    coreLocalized: "Clone failed: \(RuntimeErrorPresentation.detail(error, locale: locale))",
+                    locale: locale
+                )
         }
     }
 }

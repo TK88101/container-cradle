@@ -2,6 +2,7 @@ import ContainerCore
 import ContainerResource
 import ContainerizationError
 import Foundation
+import Synchronization
 import TerminalProgress
 
 @testable import ContainerRuntime
@@ -75,6 +76,7 @@ actor FakeUpstreamClient: UpstreamClient {
 
     func get(id: String) async throws -> ContainerSnapshot {
         calls.append(.get(id))
+        await getGate.passThrough()
         if let failGet { throw failGet }
         // 一旦 deleteContainer 触发（且注入了 recheck 错误），后续 get 抛该错——模拟「delete 后
         // 复核 get 因超时/映射失败而无法确定存在性」（codex P1：这种失败绝不能被当成「已删成功」）。
@@ -127,6 +129,17 @@ actor FakeUpstreamClient: UpstreamClient {
     /// 让 `stop` 延迟 `delay` 后才成功（模拟容器吃满 SIGTERM 优雅期才退出）。
     func setStopDelay(_ delay: Duration?) { stopDelay = delay }
 
+    // MARK: - Day 25：可放行的闸门（Plan 2026-10-22 T2）
+
+    /// 与 `hang*` 的区别：`hang*` 永不放行，闸门能**之后再放行**——测「超时之后上游才回话」。
+    /// 都不响应取消（同真 XPC）。
+    let createGate = TestGate()
+    let cloneCreateGate = TestGate()
+    let getGate = TestGate()
+
+    /// `calls` 里某一类调用的次数——等「上游已经被调到这一步」用。
+    func count(_ call: Call) -> Int { calls.filter { $0 == call }.count }
+
     // MARK: - Day 16：create（T6）
 
     private var failCreate: (any Error)?
@@ -143,6 +156,7 @@ actor FakeUpstreamClient: UpstreamClient {
 
     func createContainer(_ inputs: CreationMapper.CreateInputs) async throws -> String {
         calls.append(.create(inputs.id))
+        await createGate.passThrough()
 
         if hangCreate {
             await withUnsafeContinuation { (_: UnsafeContinuation<Void, Never>) in }
@@ -227,6 +241,7 @@ actor FakeUpstreamClient: UpstreamClient {
     func createFromConfiguration(_ configuration: ContainerConfiguration) async throws -> String {
         calls.append(.cloneCreate(configuration.id))
         lastCloneConfiguration = configuration
+        await cloneCreateGate.passThrough()
 
         if hangCloneCreate {
             await withUnsafeContinuation { (_: UnsafeContinuation<Void, Never>) in }
@@ -411,6 +426,46 @@ struct FakePathChecker: PathChecker {
 
     func fileExists(atPath path: String) -> Bool {
         existing.contains(path)
+    }
+}
+
+/// 可放行的闸门（Day 25）。默认开着；`close()` 后 `passThrough()` 停在门后，`open()` 一次放行全部。
+/// **不响应取消**——它替身的是不理取消的 XPC。
+actor TestGate {
+
+    private var isClosed = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func close() { isClosed = true }
+
+    func open() {
+        isClosed = false
+        let pending = waiters
+        waiters = []
+        pending.forEach { $0.resume() }
+    }
+
+    func passThrough() async {
+        guard isClosed else { return }
+        await withCheckedContinuation { waiters.append($0) }
+    }
+}
+
+/// 数 `probe()` 被调了几次的 prober（Day 25 T2-⑪：同一 operation 的错误只映射一次）。
+final class CountingProber: RuntimeProber {
+
+    private let count = Mutex(0)
+    private let result: ProbeResult
+
+    init(result: ProbeResult = FakeRuntimeProber.up.result) {
+        self.result = result
+    }
+
+    var probes: Int { count.withLock { $0 } }
+
+    func probe() async -> ProbeResult {
+        count.withLock { $0 += 1 }
+        return result
     }
 }
 
