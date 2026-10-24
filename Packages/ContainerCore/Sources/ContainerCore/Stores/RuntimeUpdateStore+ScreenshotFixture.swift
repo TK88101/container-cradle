@@ -20,12 +20,12 @@ extension RuntimeUpdateStore {
         setState(.failed(.installedButNotRestarted(installed), pending: .containersNotRestarted(ids)))
     }
 
-    /// 仅 DEBUG：Day 24 A/B 验收夹具（Plan 2026-10-21 A/B-fx）——「手上有可用版本、这次没能重新确认」那一屏：
-    /// `.available` + `recheckFailure`，与 `failCheck` 回退写出的是同一组状态。只写内存。
+    /// 仅 DEBUG：Day 24 A/B 验收夹具（Plan 2026-10-21 A/B-fx）——「手上有可用版本、这次没能重新确认」那一屏。
+    /// 先摆出 `.available`，再走**真的** `failCheck` 回退（Day 26：原为手写同态，`failCheck` 一改就会悄悄对不上）。只写内存。
     public func presentRecheckFailureFixture(installed: RuntimeVersion, release: RuntimeRelease, failure: CheckFailure) {
         lastKnownInstalled = installed
         setState(.available(installed: installed, release: release))
-        recheckFailure = failure
+        failCheck(failure, held: HeldRelease(state), installed: installed) // 与 `startCheck` 同一个取法
     }
 }
 #endif

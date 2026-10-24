@@ -43,6 +43,20 @@ struct FailureClassificationTests {
         #expect(FailureKind(from: .operationFailed(reason: "exit status 1")) == .transient)
     }
 
+    /// create / clone 专属的三种错误（结果未知 / 同名在途 / 在途数到上限）不在 supervisor 路径上；
+    /// 穷尽 switch 要求表态，与 `.operationFailed` 同档。**不碰 D4**：它们都不是 `environmentNotReady`。
+    @Test(
+        "create 专属错误 → transient（与 operationFailed 同档）",
+        arguments: [
+            RuntimeError.creation(.outcomeUnknown(reason: "XPC call timed out (300 seconds)")),
+            RuntimeError.creation(.inProgress(name: "web")),
+            RuntimeError.creation(.limitReached(limit: 8)),
+        ]
+    )
+    func creationOnlyErrorsAreTransient(error: RuntimeError) {
+        #expect(FailureKind(from: error) == .transient)
+    }
+
     /// **只有 `.transient` 推熔断计数。** 这条断言是 R13 的护栏：
     /// 它一旦变红，说明有人把环境失败算进了熔断——supervisor 会在 31 秒后放弃。
     @Test("环境失败绝不落进 transient 档")

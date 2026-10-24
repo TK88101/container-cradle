@@ -97,11 +97,23 @@ public enum RuntimeUpdatePresentation {
         return String(coreLocalized: "Couldn't re-check just now: \(reason)", locale: locale)
     }
 
+    /// 过了解除时刻再多刷一下的余量：保证改口那一帧会被 `.periodic` 画出来。
+    static let refreshGrace: TimeInterval = 1
+
     /// 文案会随时间改口（限流态：过了解除时刻要改说法）——view 据此挂每秒刷新的 `TimelineView`。
-    public static func needsPeriodicRefresh(for state: RuntimeUpdateStore.State, recheckFailure: CheckFailure?) -> Bool {
-        if case .checkFailed(.rateLimited) = state { return true }
-        if case .rateLimited? = recheckFailure { return true }
-        return false
+    /// 只在 `refreshDeadline` 之前为 true（Day 26：改口之后不再每秒重绘，Plan 2026-10-23 §2.5）。
+    /// `now` 不给默认值：让编译器逼出每个调用点，免得某处静默用了不刷新的时间。
+    public static func needsPeriodicRefresh(for state: RuntimeUpdateStore.State, recheckFailure: CheckFailure?, now: Date) -> Bool {
+        refreshDeadline(for: state, recheckFailure: recheckFailure).map { now < $0 } ?? false
+    }
+
+    /// 每秒刷新该停的时刻：限流解除时刻 + `refreshGrace`；不在限流态 ⇒ nil。
+    /// 两处都带解除时刻时取最晚的——按现有状态机两者互斥（`recheckFailure` 只在 available / skipped 存在），
+    /// 取最晚只防将来状态演化时提早停掉另一行的改口。
+    public static func refreshDeadline(for state: RuntimeUpdateStore.State, recheckFailure: CheckFailure?) -> Date? {
+        let fromState: Date? = if case .checkFailed(.rateLimited(let until)) = state { until } else { nil }
+        let fromRecheck: Date? = if case .rateLimited(let until)? = recheckFailure { until } else { nil }
+        return [fromState, fromRecheck].compactMap { $0 }.max().map { $0.addingTimeInterval(refreshGrace) }
     }
 
     static func stageText(_ stage: UpdateStage, target: RuntimeVersion, locale: Locale) -> String {

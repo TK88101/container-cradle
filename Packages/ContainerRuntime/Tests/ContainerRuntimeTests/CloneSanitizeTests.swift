@@ -179,7 +179,7 @@ struct CloneSanitizeTests {
             _ = try await sut.create(clonedFrom: sourceID, name: name, envOverride: nil)
             Issue.record("expected a throw")
         } catch {
-            guard case .outcomeUnknown = error else { Issue.record("got \(error)"); return }
+            guard case .creation(.outcomeUnknown) = error else { Issue.record("got \(error)"); return }
         }
     }
 }

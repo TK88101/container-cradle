@@ -5,22 +5,17 @@ import Testing
 
 /// Day 25（Plan 2026-10-22 §2.2）：本 App 自己挡下的两种「这次没有发出」——同名在途、在途数到上限。
 /// 都不是失败，也不暗示运行时坏了；文案不加 "Create failed:" 前缀。
-@Suite("creationInProgress / creationLimitReached：分类与文案")
+@Suite("creationInProgress / creationLimitReached：文案（分类见 FailureClassificationTests）")
 struct CreationConflictErrorTests {
 
-    static let inProgress = RuntimeError.creationInProgress(name: "web")
-    static let limitReached = RuntimeError.creationLimitReached(limit: 8)
+    static let inProgress = RuntimeError.creation(.inProgress(name: "web"))
+    static let limitReached = RuntimeError.creation(.limitReached(limit: 8))
     static let en = Locale(identifier: "en")
 
     static let inProgressText =
         "A container named web is already being created in this app. The name stays reserved until that request returns or you reopen the app. Check the container list in the menu before trying again."
     static let limitText =
         "8 container creations are still in progress. Wait for them to finish, then try again. If this persists, reopen the app."
-
-    @Test("分类：两者都是 transient（不在 supervisor 路径上；不碰 D4）", arguments: [inProgress, limitReached])
-    func classifiedAsTransient(error: RuntimeError) {
-        #expect(FailureKind(from: error) == .transient)
-    }
 
     @Test("create 提交被挡：专用文案，不说 failed")
     func createMessages() {

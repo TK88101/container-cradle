@@ -68,7 +68,7 @@ extension ContainerRuntimeClient where Self: VolumeImageUnimplementedTestDouble 
         _ operationID: CreationOperationID,
         within budget: Duration
     ) async throws(RuntimeError) -> ContainerID {
-        throw .outcomeUnknown(reason: "test double: no pending creations", pending: nil)
+        throw .creation(.outcomeUnknown(reason: "test double: no pending creations", pending: nil))
     }
 
     func abandonPendingCreation(_ operationID: CreationOperationID) async {}

@@ -4,17 +4,12 @@ import Testing
 @testable import ContainerCore
 
 /// Day 24：create / clone 超时 = 结果未知（可能仍会完成）。界面不能说「失败」，要说「先去列表里确认再重试」。
-@Suite("outcomeUnknown：分类与文案")
+@Suite("outcomeUnknown：文案（分类见 FailureClassificationTests）")
 struct CreateOutcomeUnknownTests {
 
-    static let error = RuntimeError.outcomeUnknown(reason: "XPC call timed out (300 seconds)")
+    static let error = RuntimeError.creation(.outcomeUnknown(reason: "XPC call timed out (300 seconds)"))
     static let en = Locale(identifier: "en")
     static let expected = "This is taking longer than expected and may still finish. Check the container list in the menu before trying again."
-
-    @Test("分类：transient（与今天 create 超时同档；不碰 D4 的 environmentNotReady）")
-    func classifiedAsTransient() {
-        #expect(FailureKind(from: Self.error) == .transient)
-    }
 
     @Test("create 提交失败：不说 failed，指向列表确认")
     func createMessage() {

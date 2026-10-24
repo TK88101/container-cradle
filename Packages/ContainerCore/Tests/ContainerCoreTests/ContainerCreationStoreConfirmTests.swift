@@ -32,7 +32,7 @@ struct ContainerCreationStoreConfirmTests {
     /// create 超时、带回 `op` 的 fake。
     private func timingOutClient(_ op: CreationOperationID) async -> FakeContainerRuntimeClient {
         let client = FakeContainerRuntimeClient(containers: [])
-        await client.inject(.outcomeUnknown(reason: "XPC call timed out", pending: op), for: .create)
+        await client.inject(.creation(.outcomeUnknown(reason: "XPC call timed out", pending: op)), for: .create)
         return client
     }
 
@@ -104,36 +104,36 @@ struct ContainerCreationStoreConfirmTests {
     func stillUnknownAbandons() async throws {
         let op = CreationOperationID()
         let client = await timingOutClient(op)
-        await client.setPendingCreationOutcome(op, .failure(.outcomeUnknown(reason: "still running", pending: op)))
+        await client.setPendingCreationOutcome(op, .failure(.creation(.outcomeUnknown(reason: "still running", pending: op))))
         let sut = store(client)
 
         await sut.submit(try spec(), startAfterCreate: true)
 
-        #expect(sut.phase == .failed(.createFailed(.outcomeUnknown(reason: "still running", pending: nil))))
+        #expect(sut.phase == .failed(.createFailed(.creation(.outcomeUnknown(reason: "still running", pending: nil)))))
         #expect((await client.calls).contains(.abandonPendingCreation(op)))
     }
 
     @Test("create 超时但没带 operationID ⇒ 不进确认段，直接 outcomeUnknown")
     func timeoutWithoutOperationSkipsConfirm() async throws {
         let client = FakeContainerRuntimeClient(containers: [])
-        await client.inject(.outcomeUnknown(reason: "t", pending: nil), for: .create)
+        await client.inject(.creation(.outcomeUnknown(reason: "t", pending: nil)), for: .create)
         let sut = store(client)
 
         await sut.submit(try spec(), startAfterCreate: false)
 
-        #expect(sut.phase == .failed(.createFailed(.outcomeUnknown(reason: "t", pending: nil))))
+        #expect(sut.phase == .failed(.createFailed(.creation(.outcomeUnknown(reason: "t", pending: nil)))))
         #expect(!(await client.calls).contains { if case .awaitPendingCreation = $0 { true } else { false } })
     }
 
     @Test("同名在途被挡 ⇒ 终态，不订阅别人的 operation")
     func creationInProgressIsTerminal() async throws {
         let client = FakeContainerRuntimeClient(containers: [])
-        await client.inject(.creationInProgress(name: "web"), for: .create)
+        await client.inject(.creation(.inProgress(name: "web")), for: .create)
         let sut = store(client)
 
         await sut.submit(try spec(), startAfterCreate: true)
 
-        #expect(sut.phase == .failed(.createFailed(.creationInProgress(name: "web"))))
+        #expect(sut.phase == .failed(.createFailed(.creation(.inProgress(name: "web")))))
         #expect(!(await client.calls).contains { if case .awaitPendingCreation = $0 { true } else { false } })
     }
 

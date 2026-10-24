@@ -155,12 +155,20 @@ struct RuntimeUpdateRecheckFallbackTests {
         #expect(h.store.recheckFailure == nil)
     }
 
-    @Test("DEBUG 夹具摆出的就是回退写出的那组状态（A/B-fx）")
+    /// 夹具 ≡ 真路径（前置限流闸那条出口），而不是 ≡ 一组写死的期望值：
+    /// `failCheck` 将来一改，写死的版本照绿、验收截图却悄悄和真实行为对不上（Plan 2026-10-23 §2.4）。
+    /// 结果本身对不对由上面那些用例（行为 oracle）守。
+    @Test("DEBUG 夹具摆出的就是真实回退路径写出的那组状态（A/B-fx）")
     func fixtureMatchesFallback() async throws {
+        let real = try await availableThen(.release(Self.release150))
+        real.prefs.rateLimitedUntil = Self.until
+        await real.run { $0.checkForUpdates() }
+        #expect(real.store.recheckFailure != nil, "真路径应已回退；否则比较的是两份空状态")
+
         let h = try Harness()
         h.store.presentRecheckFailureFixture(installed: Self.v141, release: Self.release150, failure: .rateLimited(until: Self.until))
-        #expect(h.store.state == .available(installed: Self.v141, release: Self.release150))
-        #expect(h.store.recheckFailure == .rateLimited(until: Self.until))
+        #expect(h.store.state == real.store.state)
+        #expect(h.store.recheckFailure == real.store.recheckFailure)
         #expect(h.store.lastKnownInstalled == Self.v141)
     }
 

@@ -35,7 +35,7 @@ struct LiveContainerRuntimeClientCreationCoordinationTests {
             _ = try await sut.create(spec)
             Issue.record("expected outcomeUnknown")
         } catch {
-            guard case .outcomeUnknown(_, let pending?) = error else {
+            guard case .creation(.outcomeUnknown(_, let pending?)) = error else {
                 Issue.record("got \(error)")
                 return nil
             }
@@ -52,7 +52,7 @@ struct LiveContainerRuntimeClientCreationCoordinationTests {
 
         _ = try await createExpectingTimeout(sut, "web")
 
-        await #expect(throws: RuntimeError.creationInProgress(name: "web")) {
+        await #expect(throws: RuntimeError.creation(.inProgress(name: "web"))) {
             _ = try await sut.create(try spec("web"))
         }
         #expect(await upstream.count(.create("web")) == 1)
@@ -105,7 +105,7 @@ struct LiveContainerRuntimeClientCreationCoordinationTests {
             _ = try await sut.awaitPendingCreation(op, within: Self.short)
             Issue.record("expected a throw")
         } catch {
-            guard case .outcomeUnknown(_, let pending) = error else { Issue.record("got \(error)"); return }
+            guard case .creation(.outcomeUnknown(_, let pending)) = error else { Issue.record("got \(error)"); return }
             #expect(pending == op)
         }
         await upstream.createGate.open()
@@ -118,7 +118,7 @@ struct LiveContainerRuntimeClientCreationCoordinationTests {
             _ = try await sut.awaitPendingCreation(CreationOperationID(), within: Self.short)
             Issue.record("expected a throw")
         } catch {
-            guard case .outcomeUnknown(_, nil) = error else { Issue.record("got \(error)"); return }
+            guard case .creation(.outcomeUnknown(_, nil)) = error else { Issue.record("got \(error)"); return }
         }
     }
 
@@ -147,7 +147,7 @@ struct LiveContainerRuntimeClientCreationCoordinationTests {
         let clone = Task { try await sut.create(clonedFrom: source, name: ContainerName("web"), envOverride: nil) }
         while await upstream.count(.get(source.rawValue)) == 0 { await Task.yield() }
 
-        await #expect(throws: RuntimeError.creationInProgress(name: "web")) {
+        await #expect(throws: RuntimeError.creation(.inProgress(name: "web"))) {
             _ = try await sut.create(try spec("web"))
         }
         #expect(await upstream.count(.create("web")) == 0)
@@ -180,7 +180,7 @@ struct LiveContainerRuntimeClientCreationCoordinationTests {
 
         _ = try await createExpectingTimeout(original, "web")
 
-        await #expect(throws: RuntimeError.creationInProgress(name: "web")) {
+        await #expect(throws: RuntimeError.creation(.inProgress(name: "web"))) {
             _ = try await copy.create(try spec("web"))
         }
         await upstream.createGate.open()
@@ -195,7 +195,7 @@ struct LiveContainerRuntimeClientCreationCoordinationTests {
         for index in 0..<CreationCoordinator.maxConcurrentCreations {
             _ = try await createExpectingTimeout(sut, "c\(index)")
         }
-        await #expect(throws: RuntimeError.creationLimitReached(limit: CreationCoordinator.maxConcurrentCreations)) {
+        await #expect(throws: RuntimeError.creation(.limitReached(limit: CreationCoordinator.maxConcurrentCreations))) {
             _ = try await sut.create(try spec("extra"))
         }
         #expect(await upstream.count(.create("extra")) == 0)
@@ -250,7 +250,7 @@ struct LiveContainerRuntimeClientCreationCoordinationTests {
         await sut.abandonPendingCreation(op)
 
         #expect(sut.coordinator.counts.operations == 0)
-        await #expect(throws: RuntimeError.creationInProgress(name: "web")) {
+        await #expect(throws: RuntimeError.creation(.inProgress(name: "web"))) {
             _ = try await sut.create(try spec("web"))
         }
         await upstream.createGate.open()

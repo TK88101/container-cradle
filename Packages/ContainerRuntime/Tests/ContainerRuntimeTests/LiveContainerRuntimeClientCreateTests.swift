@@ -67,7 +67,7 @@ struct LiveContainerRuntimeClientCreateTests {
         }
     }
 
-    /// Day 24：超时 ≠ 失败。`XPCTimeout` 不等在途调用，上游的 create 可能照样完成 → `.outcomeUnknown`，不是 `.operationFailed`。
+    /// Day 24：超时 ≠ 失败。`XPCTimeout` 不等在途调用，上游的 create 可能照样完成 → `.creation(.outcomeUnknown)`，不是 `.operationFailed`。
     @Test("create 卡死 → 在 createTimeout 后返回、不冻住，报 outcomeUnknown（不是失败）")
     func createHangReturnsAfterTimeout() async throws {
         let upstream = FakeUpstreamClient()
@@ -79,7 +79,7 @@ struct LiveContainerRuntimeClientCreateTests {
             _ = try await sut.create(spec)
             Issue.record("expected a throw")
         } catch {
-            guard case .outcomeUnknown = error else { Issue.record("got \(error)"); return }
+            guard case .creation(.outcomeUnknown) = error else { Issue.record("got \(error)"); return }
         }
     }
 

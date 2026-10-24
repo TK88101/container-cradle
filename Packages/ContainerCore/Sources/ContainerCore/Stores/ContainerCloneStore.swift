@@ -20,7 +20,7 @@ import Observation
 ///
 /// ## 超时后的确认段（Day 25，Plan 2026-10-22 §2.1 / T5）
 ///
-/// 同 `ContainerCreationStore`：create 抛 `.outcomeUnknown(pending: operationID)` ⇒ `.confirming`，
+/// 同 `ContainerCreationStore`：create 抛 `.creation(.outcomeUnknown(pending: operationID))` ⇒ `.confirming`，
 /// 凭 operationID 取回那一次的真实结果（`PendingCreationConfirmation`）。clone 不启动，没有启动意图要补。
 @MainActor
 @Observable
@@ -156,7 +156,7 @@ public final class ContainerCloneStore {
             let id = try await client.create(clonedFrom: source, name: name, envOverride: environmentOverride)
             settle(.succeeded(id))
         } catch {
-            guard case .outcomeUnknown(_, let operationID?) = error else {
+            guard case .creation(.outcomeUnknown(_, let operationID?)) = error else {
                 settle(.failed(.createFailed(error)))
                 return true
             }

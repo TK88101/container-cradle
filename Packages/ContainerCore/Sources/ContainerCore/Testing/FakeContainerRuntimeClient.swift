@@ -338,7 +338,7 @@ public actor FakeContainerRuntimeClient: ContainerRuntimeClient {
         case .failure(let error):
             throw error
         case nil:
-            throw .outcomeUnknown(reason: "fake: no pending outcome", pending: nil)
+            throw .creation(.outcomeUnknown(reason: "fake: no pending outcome", pending: nil))
         }
     }
 

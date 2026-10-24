@@ -50,7 +50,7 @@ struct CreationCoordinatorTests {
         _ = try sut.start(name: "web", work: gatedWork(gate, Self.success("web")))
 
         let secondRan = Counter()
-        #expect(throws: RuntimeError.creationInProgress(name: "web")) {
+        #expect(throws: RuntimeError.creation(.inProgress(name: "web"))) {
             _ = try sut.start(name: "web") { secondRan.increment(); return Self.success("web") }
         }
         #expect(secondRan.value == 0)
@@ -85,7 +85,7 @@ struct CreationCoordinatorTests {
         }
 
         let ran = Counter()
-        #expect(throws: RuntimeError.creationLimitReached(limit: CreationCoordinator.maxConcurrentCreations)) {
+        #expect(throws: RuntimeError.creation(.limitReached(limit: CreationCoordinator.maxConcurrentCreations))) {
             _ = try sut.start(name: "extra") { ran.increment(); return .failure(.operationFailed(reason: "x")) }
         }
         #expect(ran.value == 0)
@@ -100,7 +100,7 @@ struct CreationCoordinatorTests {
         for index in 0..<CreationCoordinator.maxConcurrentCreations {
             _ = try sut.start(name: "c\(index)", work: gatedWork(gate, .failure(.operationFailed(reason: "x"))))
         }
-        #expect(throws: RuntimeError.creationInProgress(name: "c0")) {
+        #expect(throws: RuntimeError.creation(.inProgress(name: "c0"))) {
             _ = try sut.start(name: "c0") { .failure(.operationFailed(reason: "x")) }
         }
         await gate.open()
@@ -215,7 +215,7 @@ struct CreationCoordinatorTests {
 
         sut.abandon(op)
 
-        #expect(throws: RuntimeError.creationInProgress(name: "web")) {
+        #expect(throws: RuntimeError.creation(.inProgress(name: "web"))) {
             _ = try sut.start(name: "web") { Self.success("web") }
         }
         await gate.open()

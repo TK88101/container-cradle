@@ -26,9 +26,9 @@ import Observation
 ///
 /// ## 超时后的确认段（Day 25，Plan 2026-10-22 §2.1）
 ///
-/// create 抛 `.outcomeUnknown(pending: operationID)` ⇒ `.confirming`，凭 operationID 取回**那一次**的真实结果：
+/// create 抛 `.creation(.outcomeUnknown(pending: operationID))` ⇒ `.confirming`，凭 operationID 取回**那一次**的真实结果：
 /// 成功才算成功，「创建并启动」才补上 `start`（G-D）；确定失败照实报；仍没结果则放弃取回、回到今天的文案。
-/// 同名后来者在 runtime 就被 `.creationInProgress` 挡下，拿不到别人的结果——自动 `start` 因此不越权。
+/// 同名后来者在 runtime 就被 `.creation(.inProgress)` 挡下，拿不到别人的结果——自动 `start` 因此不越权。
 /// 单飞令牌是 `phase.isBusy`（`.submitting` 与 `.confirming` 都拒），不是 `== .submitting`（codex R1-P2）。
 @MainActor
 @Observable
@@ -113,7 +113,7 @@ public final class ContainerCreationStore {
         do {
             createdID = try await client.create(spec)
         } catch {
-            guard case .outcomeUnknown(_, let operationID?) = error else {
+            guard case .creation(.outcomeUnknown(_, let operationID?)) = error else {
                 settle(.failed(.createFailed(error))) // 未调 start
                 return true
             }

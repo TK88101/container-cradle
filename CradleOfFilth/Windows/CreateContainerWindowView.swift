@@ -247,34 +247,42 @@ struct CreateContainerWindowView: View {
     }
 
     private func submitSection(fieldError: ContainerCreationForm.FieldError?) -> some View {
-        Section {
-            HStack {
+        // `.disabled` 与主按钮的降透明度共用同一个条件，免得两处漂移。
+        let submitDisabled = fieldError != nil || isSubmitting
+        return Section {
+            // 按钮行与进行中提示同一个 Form 行：提示为 nil 时不留空行（Plan 2026-10-23 §2.2）。
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    if isSubmitting {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+
+                    Spacer()
+
+                    // 「创建」与「创建并启动」是两条失败形态不同的路径（core 的
+                    // `startAfterCreate` 无默认值，B 段 codex #1）——按钮语义一一对应。
+                    Button("Create") {
+                        Task { await submit(startAfterCreate: false) }
+                    }
+
+                    Button("Create & Start") {
+                        Task { await submit(startAfterCreate: true) }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    // borderedProminent 禁用时只略微变暗，与可点几乎无差：禁用就再降透明度（Plan 2026-10-23 §2.3）。
+                    // 不用 `.tint(.gray)`：本 App 的窗口常是非活动样式，prominent 按钮本就不上强调色，tint 看不出差别（T8 实测）。
+                    .opacity(submitDisabled ? 0.45 : 1)
+                }
+                // disabled 只是体验层（真防线是 store 的单飞拒绝制）。
+                .disabled(submitDisabled)
+
                 if isSubmitting {
-                    ProgressView()
-                        .controlSize(.small)
+                    CreationProgressNote(
+                        isConfirming: model.creation.phase == .confirming,
+                        submittedAt: model.creation.submittedAt
+                    )
                 }
-
-                Spacer()
-
-                // 「创建」与「创建并启动」是两条失败形态不同的路径（core 的
-                // `startAfterCreate` 无默认值，B 段 codex #1）——按钮语义一一对应。
-                Button("Create") {
-                    Task { await submit(startAfterCreate: false) }
-                }
-
-                Button("Create & Start") {
-                    Task { await submit(startAfterCreate: true) }
-                }
-                .buttonStyle(.borderedProminent)
-            }
-            // disabled 只是体验层（真防线是 store 的单飞拒绝制）。
-            .disabled(fieldError != nil || isSubmitting)
-
-            if isSubmitting {
-                CreationProgressNote(
-                    isConfirming: model.creation.phase == .confirming,
-                    submittedAt: model.creation.submittedAt
-                )
             }
 
             if case .failed(let failure) = model.creation.phase {

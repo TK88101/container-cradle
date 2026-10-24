@@ -112,16 +112,17 @@ public struct OSLogSupervisorLog: SupervisorLog {
         "\(g.pid)/\(g.startTime)"
     }
 
-    /// `RuntimeError` 的**公开身份**：只有 case 名，绝无上游文本。
-    private static func publicKind(_ error: RuntimeError) -> String {
+    /// `RuntimeError` 的**公开身份**：只有 case 名，绝无上游文本。internal 只为让测试钉住这些字符串（日志查询依赖它们）。
+    static func publicKind(_ error: RuntimeError) -> String {
         switch error {
         case .runtimeUnavailable: "runtimeUnavailable"
         case .containerNotFound: "containerNotFound"
         case .mountSourceUnavailable: "mountSourceUnavailable"
         case .operationFailed: "operationFailed"
-        case .outcomeUnknown: "outcomeUnknown"
-        case .creationInProgress: "creationInProgress"
-        case .creationLimitReached: "creationLimitReached"
+        // 保留 Day 24–25 的原 case 名（Day 26 嵌套前的写法），既有日志查询照旧可用。
+        case .creation(.outcomeUnknown): "outcomeUnknown"
+        case .creation(.inProgress): "creationInProgress"
+        case .creation(.limitReached): "creationLimitReached"
         }
     }
 
@@ -134,11 +135,11 @@ public struct OSLogSupervisorLog: SupervisorLog {
             id.rawValue
         case .mountSourceUnavailable(let path):
             path
-        case .operationFailed(let reason), .outcomeUnknown(let reason, _):
+        case .operationFailed(let reason), .creation(.outcomeUnknown(let reason, _)):
             reason
-        case .creationInProgress(let name):
+        case .creation(.inProgress(let name)):
             name
-        case .creationLimitReached(let limit):
+        case .creation(.limitReached(let limit)):
             String(limit)
         }
     }

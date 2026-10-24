@@ -22,7 +22,7 @@ struct ContainerCloneStoreConfirmTests {
     /// 源容器 `src` 在库；clone 的 create 超时、带回 `op`。
     private func timingOutClient(_ op: CreationOperationID?) async throws -> FakeContainerRuntimeClient {
         let client = FakeContainerRuntimeClient(containers: [try container("src")])
-        await client.inject(.outcomeUnknown(reason: "XPC call timed out", pending: op), for: .createClone)
+        await client.inject(.creation(.outcomeUnknown(reason: "XPC call timed out", pending: op)), for: .createClone)
         return client
     }
 
@@ -64,12 +64,12 @@ struct ContainerCloneStoreConfirmTests {
     func stillUnknownAbandons() async throws {
         let op = CreationOperationID()
         let client = try await timingOutClient(op)
-        await client.setPendingCreationOutcome(op, .failure(.outcomeUnknown(reason: "still", pending: op)))
+        await client.setPendingCreationOutcome(op, .failure(.creation(.outcomeUnknown(reason: "still", pending: op))))
         let sut = try store(client)
 
         await sut.submit()
 
-        #expect(sut.phase == .failed(.createFailed(.outcomeUnknown(reason: "still", pending: nil))))
+        #expect(sut.phase == .failed(.createFailed(.creation(.outcomeUnknown(reason: "still", pending: nil)))))
         #expect((await client.calls).contains(.abandonPendingCreation(op)))
     }
 
@@ -80,19 +80,19 @@ struct ContainerCloneStoreConfirmTests {
 
         await sut.submit()
 
-        #expect(sut.phase == .failed(.createFailed(.outcomeUnknown(reason: "XPC call timed out", pending: nil))))
+        #expect(sut.phase == .failed(.createFailed(.creation(.outcomeUnknown(reason: "XPC call timed out", pending: nil)))))
         #expect(!(await client.calls).contains { if case .awaitPendingCreation = $0 { true } else { false } })
     }
 
     @Test("同名在途被挡 ⇒ 终态，不订阅")
     func creationInProgressIsTerminal() async throws {
         let client = FakeContainerRuntimeClient(containers: [try container("src")])
-        await client.inject(.creationInProgress(name: "web"), for: .createClone)
+        await client.inject(.creation(.inProgress(name: "web")), for: .createClone)
         let sut = try store(client)
 
         await sut.submit()
 
-        #expect(sut.phase == .failed(.createFailed(.creationInProgress(name: "web"))))
+        #expect(sut.phase == .failed(.createFailed(.creation(.inProgress(name: "web")))))
         #expect(!(await client.calls).contains { if case .awaitPendingCreation = $0 { true } else { false } })
     }
 

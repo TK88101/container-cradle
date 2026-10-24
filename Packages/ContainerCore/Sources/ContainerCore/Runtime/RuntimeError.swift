@@ -20,6 +20,10 @@
 /// 加 case 会让所有穷尽 `switch` **编译报错**，逼每个消费者显式决定怎么处理。
 /// 那正是想要的：新的失败形态不该被一个既有的 `default:` 分支静默吞掉。
 ///
+/// 两层契约（Day 26，Plan 2026-10-23 §2.1）：加**顶层** case ⇒ 外层的每个消费者表态；
+/// 加 `Creation` 的 case ⇒ 对它穷尽 switch 的消费者表态——至少有 `FailureKind(from:)` 与
+/// `RuntimeErrorPresentation.notFailedCreationText`，那两处故意不写成一个 `.creation` 分支。
+///
 /// 映射到 supervisor 的反应，见 `FailureClassification.swift`——**那张表是 R13 的生死线**。
 public enum RuntimeError: Error, Equatable, Sendable {
 
@@ -54,22 +58,8 @@ public enum RuntimeError: Error, Equatable, Sendable {
     /// - Parameter reason: 上游给的说法。**只用于展示与日志，绝不用于分类**——
     ///   靠嗅字符串分类，上游改一个字就无声失效（R14 的同一条教训）。
     case operationFailed(reason: String)
-    /// 等到超时也没等来结果，**操作可能仍会完成**（Day 24，Plan 2026-10-21 附录 B）。只由 create / clone 产生：
-    /// `XPCTimeout` 到点即返回、不等在途调用，上游的 create 还在跑——之后容器可能照样建出来。
-    /// 与 `.operationFailed` 分开，界面才不会把「还在建」说成「失败」。supervisor 路径不产生它。
-    ///
-    /// - Parameter reason: 超时诊断串，只用于展示与日志，绝不用于分类。
-    /// - Parameter pending: 能取回这次结果的操作身份（`ContainerRuntimeClient.awaitPendingCreation`）；
-    ///   nil = 没有可等的东西（已取不回，或本来就不是 create / clone）。Day 25。
-    case outcomeUnknown(reason: String, pending: CreationOperationID? = nil)
 
-    /// 本 App 已有同名的 create / clone 结果未定，**这次没有发出**（Day 25，Plan 2026-10-22 §2.2）。
-    /// 名字要一直挡到那次请求返回（或 App 重开）——放行就可能让两次请求争同一个名字。supervisor 路径不产生它。
-    ///
-    /// - Parameter name: 被占着的容器名，给用户看的。
-    case creationInProgress(name: String)
-
-    /// 本 App 已有 `limit` 个 create / clone 结果未定，**这次没有发出**（Day 25）。
-    /// 客户端自我保护阈值，**不是**运行时故障诊断（codex R6-P2）。supervisor 路径不产生它。
-    case creationLimitReached(limit: Int)
+    /// create / clone 没有确定结果，或被本 App 挡下没有发出。只由 create / clone 产生，supervisor 路径不产生。
+    /// 三种情形见 `RuntimeError.Creation`（Day 26 收成嵌套 case）。
+    case creation(Creation)
 }

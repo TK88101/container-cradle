@@ -345,7 +345,8 @@ public final class RuntimeUpdateStore {
     }
 
     /// 检查开始前手上持有的 release（`.available` / `.skipped`）。检查失败时回退到它（Plan 2026-10-21 §2.1）。
-    private struct HeldRelease {
+    /// internal 只为让 DEBUG 验收夹具走同一条回退路径（Plan 2026-10-23 §2.4）。
+    struct HeldRelease {
         let release: RuntimeRelease
         let wasSkipped: Bool
 
@@ -360,7 +361,8 @@ public final class RuntimeUpdateStore {
 
     /// 检查失败的唯一出口。持有 release 且这一刻读到的已装版本仍低于它 → 回退（`installed` 用新读的值，D-A1），
     /// 不发通知、不自动开装（D-A2）；否则照原行为 `.checkFailed`。
-    private func failCheck(_ failure: CheckFailure, held: HeldRelease?, installed: RuntimeVersion) {
+    /// internal 是为了让 DEBUG 验收夹具走同一条回退路径、不和它漂移（Plan 2026-10-23 §2.4）；业务代码只应经 `runCheck` 到这里。
+    func failCheck(_ failure: CheckFailure, held: HeldRelease?, installed: RuntimeVersion) {
         guard let held, installed < held.release.version else {
             state = .checkFailed(failure)
             return

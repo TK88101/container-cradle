@@ -34,16 +34,23 @@ enum RuntimeErrorPresentation {
             )
         case .operationFailed(let reason):
             reason
+        case .creation(let creation):
+            creationDetail(creation, locale: locale)
+        }
+    }
+
+    private static func creationDetail(_ creation: RuntimeError.Creation, locale: Locale) -> String {
+        switch creation {
         case .outcomeUnknown:
             // 不透传 reason：「XPC call timed out」读起来就是失败，而这里要说的恰恰是「可能还没失败」。
             outcomeUnknownText(locale: locale)
-        case .creationInProgress(let name):
+        case .inProgress(let name):
             String(
                 coreLocalized:
                     "A container named \(name) is already being created in this app. The name stays reserved until that request returns or you reopen the app. Check the container list in the menu before trying again.",
                 locale: locale
             )
-        case .creationLimitReached(let limit):
+        case .limitReached(let limit):
             String(
                 coreLocalized:
                     "\(limit) container creations are still in progress. Wait for them to finish, then try again. If this persists, reopen the app.",
@@ -56,14 +63,18 @@ enum RuntimeErrorPresentation {
     /// 由调用方加 "Create failed:" / "Clone failed:" 前缀。穷尽 switch：新 case 必须在这里表态它算不算「失败」。
     static func notFailedCreationText(_ error: RuntimeError, locale: Locale) -> String? {
         switch error {
-        case .outcomeUnknown, .creationInProgress, .creationLimitReached:
-            detail(error, locale: locale)
+        case .creation(let creation):
+            // 对 inner 穷尽 switch 是故意的：加 `Creation` 的 case 必须在这里表态它算不算「失败」（Plan 2026-10-23 §2.1）。
+            switch creation {
+            case .outcomeUnknown, .inProgress, .limitReached:
+                creationDetail(creation, locale: locale)
+            }
         case .runtimeUnavailable, .containerNotFound, .mountSourceUnavailable, .operationFailed:
             nil
         }
     }
 
-    /// `.outcomeUnknown` 的用户文案（create / clone 提交失败也直接用它，不加 "Create failed:" 前缀）。
+    /// `.creation(.outcomeUnknown)` 的用户文案（create / clone 提交失败也直接用它，不加 "Create failed:" 前缀）。
     static func outcomeUnknownText(locale: Locale) -> String {
         String(
             coreLocalized:

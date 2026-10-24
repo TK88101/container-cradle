@@ -414,7 +414,7 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
     /// 全新创建（能力 A）。判断在这一层：spec→inputs 纯映射（`CreationMapper`，已测）+ XPCTimeout +
     /// 错误映射 + id 回映。装配与 create 的副作用捆在 `upstream.createContainer`（不可测的直线段）。
     ///
-    /// Day 25：经 `CreationCoordinator` 占名（同名在途 ⇒ `.creationInProgress`，不调上游），超时带回 operationID。
+    /// Day 25：经 `CreationCoordinator` 占名（同名在途 ⇒ `.creation(.inProgress)`，不调上游），超时带回 operationID。
     public func create(_ spec: ContainerCreationSpec) async throws(RuntimeError) -> ContainerID {
         let inputs = CreationMapper.inputs(for: spec)
         let operationID = try coordinator.start(name: spec.name.value) { [upstream, errors] in
@@ -480,17 +480,17 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
         case .delivered(let outcome):
             return try outcome.get()
         case .stillRunning:
-            throw .outcomeUnknown(reason: "The create request has not returned yet", pending: operationID)
+            throw .creation(.outcomeUnknown(reason: "The create request has not returned yet", pending: operationID))
         case .unavailable:
             throw Self.pendingResultGone
         }
     }
 
     /// 结果已取不回（被取走 / 被放弃 / 被淘汰 / 不是这里登记的）。`pending: nil`：没有可再等的东西。
-    private static let pendingResultGone = RuntimeError.outcomeUnknown(
+    private static let pendingResultGone = RuntimeError.creation(.outcomeUnknown(
         reason: "The result of this create request is no longer available",
         pending: nil
-    )
+    ))
 
     public func abandonPendingCreation(_ operationID: CreationOperationID) async {
         coordinator.abandon(operationID)
@@ -587,8 +587,7 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
             switch error {
             case .containerNotFound:
                 return false
-            case .runtimeUnavailable, .operationFailed, .mountSourceUnavailable, .outcomeUnknown,
-                 .creationInProgress, .creationLimitReached:
+            case .runtimeUnavailable, .operationFailed, .mountSourceUnavailable, .creation:
                 throw error
             }
         }
@@ -599,7 +598,7 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
     ///
     /// - 拿到结果 ⇒ 已被取走（不留待领），直接交出。
     /// - 没等到（超时或调用方被取消）：按「等超时了」走常规 R14 映射——进程表说 down 就是 `.runtimeUnavailable`，
-    ///   此时没人会来领 ⇒ 放弃登记（名字仍挡到调用结束）；运行时还在 ⇒ `.outcomeUnknown(pending: operationID)`，
+    ///   此时没人会来领 ⇒ 放弃登记（名字仍挡到调用结束）；运行时还在 ⇒ `.creation(.outcomeUnknown(pending: operationID))`，
     ///   调用方凭它取回真实结果（Day 25）。
     private func awaitCreation(_ operationID: CreationOperationID) async throws(RuntimeError) -> ContainerID {
         switch await coordinator.awaitOutcome(operationID, within: createTimeout) {
@@ -611,7 +610,7 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
                 coordinator.abandon(operationID)
                 throw mapped
             }
-            throw .outcomeUnknown(reason: reason, pending: operationID)
+            throw .creation(.outcomeUnknown(reason: reason, pending: operationID))
         case .unavailable:
             throw Self.pendingResultGone
         }

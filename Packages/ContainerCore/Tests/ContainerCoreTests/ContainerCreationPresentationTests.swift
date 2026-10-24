@@ -86,6 +86,9 @@ struct ContainerCreationPresentationTests {
             .nameAlreadyExists(try id("web")),
             .precheckFailed(.runtimeUnavailable),
             .createFailed(.operationFailed(reason: "boom")),
+            .createFailed(.creation(.outcomeUnknown(reason: "XPC call timed out (300 seconds)"))),
+            .createFailed(.creation(.inProgress(name: "web"))),
+            .createFailed(.creation(.limitReached(limit: 8))),
             .startFailed(try id("web"), .operationFailed(reason: "exit status 125")),
         ]
     }
@@ -144,6 +147,9 @@ struct ContainerCreationPresentationTests {
             .nameAlreadyExists(try id("taken")),
             .precheckFailed(.runtimeUnavailable),
             .createFailed(.operationFailed(reason: "boom")),
+            .createFailed(.creation(.outcomeUnknown(reason: "XPC call timed out (300 seconds)"))),
+            .createFailed(.creation(.inProgress(name: "web"))),
+            .createFailed(.creation(.limitReached(limit: 8))),
         ]
     }
 

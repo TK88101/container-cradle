@@ -65,25 +65,63 @@ struct RuntimeUpdateRateLimitTextTests {
         #expect(!translated.isEmpty && translated != english, "\(locale.identifier)")
     }
 
-    // MARK: - needsPeriodicRefresh（view 挂不挂每秒刷新的 TimelineView）
+    // MARK: - needsPeriodicRefresh / refreshDeadline（view 挂不挂每秒刷新的 TimelineView；Day 26 到点摘掉）
 
-    @Test("checkFailed(rateLimited) → 要刷新")
+    static let available = RuntimeUpdateStore.State.available(installed: v141, release: release)
+
+    private static func needs(_ state: RuntimeUpdateStore.State, _ recheck: CheckFailure?, at offset: TimeInterval) -> Bool {
+        RuntimeUpdatePresentation.needsPeriodicRefresh(for: state, recheckFailure: recheck, now: now.addingTimeInterval(offset))
+    }
+
+    @Test("checkFailed(rateLimited)：until 之前、until 到 until+1s 之间要刷新；≥ until+1s 不刷新")
     func refreshForRateLimitedState() {
-        #expect(RuntimeUpdatePresentation.needsPeriodicRefresh(for: .checkFailed(.rateLimited(until: Self.now)), recheckFailure: nil))
+        let state = RuntimeUpdateStore.State.checkFailed(.rateLimited(until: Self.now))
+        #expect(Self.needs(state, nil, at: -30))
+        #expect(Self.needs(state, nil, at: 0.5))
+        #expect(!Self.needs(state, nil, at: 1))
+        #expect(!Self.needs(state, nil, at: 60))
     }
 
-    @Test("available + recheckFailure 限流 → 要刷新")
+    @Test("available + recheckFailure 限流：同一组边界")
     func refreshForRecheckFailure() {
-        let state = RuntimeUpdateStore.State.available(installed: Self.v141, release: Self.release)
-        #expect(RuntimeUpdatePresentation.needsPeriodicRefresh(for: state, recheckFailure: .rateLimited(until: Self.now)))
+        let recheck = CheckFailure.rateLimited(until: Self.now)
+        #expect(Self.needs(Self.available, recheck, at: -30))
+        #expect(Self.needs(Self.available, recheck, at: 0.5))
+        #expect(!Self.needs(Self.available, recheck, at: 1))
     }
 
-    @Test("其它状态 / 非限流失败 → 不刷新")
+    @Test("其它状态 / 非限流失败 → 不刷新，deadline 为 nil")
     func noRefreshOtherwise() {
-        let available = RuntimeUpdateStore.State.available(installed: Self.v141, release: Self.release)
-        #expect(!RuntimeUpdatePresentation.needsPeriodicRefresh(for: .idle, recheckFailure: nil))
-        #expect(!RuntimeUpdatePresentation.needsPeriodicRefresh(for: available, recheckFailure: nil))
-        #expect(!RuntimeUpdatePresentation.needsPeriodicRefresh(for: available, recheckFailure: .release(.network("x"))))
-        #expect(!RuntimeUpdatePresentation.needsPeriodicRefresh(for: .checkFailed(.release(.http(500))), recheckFailure: nil))
+        let cases: [(RuntimeUpdateStore.State, CheckFailure?)] = [
+            (.idle, nil),
+            (Self.available, nil),
+            (Self.available, .release(.network("x"))),
+            (.checkFailed(.release(.http(500))), nil),
+        ]
+        for (state, recheck) in cases {
+            #expect(!Self.needs(state, recheck, at: -30))
+            #expect(RuntimeUpdatePresentation.refreshDeadline(for: state, recheckFailure: recheck) == nil)
+        }
+    }
+
+    @Test("refreshDeadline = until + 1 s；两处都带 until 时取最晚（防提早停刷新）")
+    func deadlineTakesLatest() {
+        let early = Self.now
+        let late = Self.now.addingTimeInterval(120)
+        #expect(
+            RuntimeUpdatePresentation.refreshDeadline(for: .checkFailed(.rateLimited(until: early)), recheckFailure: nil)
+                == early.addingTimeInterval(1)
+        )
+        #expect(
+            RuntimeUpdatePresentation.refreshDeadline(
+                for: .checkFailed(.rateLimited(until: early)), recheckFailure: .rateLimited(until: late)
+            ) == late.addingTimeInterval(1)
+        )
+        #expect(
+            RuntimeUpdatePresentation.refreshDeadline(
+                for: .checkFailed(.rateLimited(until: late)), recheckFailure: .rateLimited(until: early)
+            ) == late.addingTimeInterval(1)
+        )
+        #expect(Self.needs(.checkFailed(.rateLimited(until: early)), .rateLimited(until: late), at: 60))
     }
 }

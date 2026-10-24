@@ -24,7 +24,8 @@ struct FormErrorText: View {
 /// 文案与判定全在 core 的 `ContainerCreationPresentation.progressNote`（可测）；这里只负责每秒重算一次。
 ///
 /// - `.periodic` 而不是 `.explicit`：Day 24 B 实测弹窗里 `.explicit` 过点不重绘（Plan 2026-10-21 附录 B）。
-/// - 闭包内显式 `VStack(alignment: .leading)`：多行时默认居中包裹会把行挤到中间（同上）。
+/// - 调用方把它和按钮行放进**同一个** Form 行（`spacing: 0` 的 VStack）：单独作为 Section 的子 view 时，
+///   提示为 nil 也会占一行带分隔线的空行（Day 25 T10 观察）。提示为 nil 时闭包里什么都不画，上间距只跟着文字走。
 /// - 调用方只在 `isBusy` 时挂它，窗口关了不渲染，periodic 的代价可忽略。
 struct CreationProgressNote: View {
 
@@ -33,17 +34,17 @@ struct CreationProgressNote: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
-            VStack(alignment: .leading) {
-                if let note = ContainerCreationPresentation.progressNote(
-                    isConfirming: isConfirming,
-                    submittedAt: submittedAt,
-                    now: context.date
-                ) {
-                    Text(note)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+            if let note = ContainerCreationPresentation.progressNote(
+                isConfirming: isConfirming,
+                submittedAt: submittedAt,
+                now: context.date
+            ) {
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 6)
             }
         }
     }

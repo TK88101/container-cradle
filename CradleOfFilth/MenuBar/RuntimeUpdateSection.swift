@@ -16,6 +16,14 @@ struct RuntimeUpdateSection: View {
 
     @Environment(\.openURL) private var openURL
 
+    /// 「这个 deadline 已经过了」：挂 TimelineView 的条件里实际读它，写它就会让 body 重新求值，摘掉每秒刷新（Plan 2026-10-23 §2.5）。
+    /// 只对同一个 deadline 生效——deadline 变了（重新检查、再次限流），旧标记自然失效。
+    @State private var expiredDeadline: Date?
+
+    private var refreshDeadline: Date? {
+        RuntimeUpdatePresentation.refreshDeadline(for: store.state, recheckFailure: store.recheckFailure)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
@@ -65,16 +73,31 @@ struct RuntimeUpdateSection: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        // 挂在始终存在的外层：Timeline 分支会随条件消失，挂在那里 task 的生命周期就说不清了。
+        .task(id: refreshDeadline) { await markExpired(refreshDeadline) }
+    }
+
+    /// 睡到 deadline 再标记它已过期。wall-clock 的 deadline 不能无损换成 `ContinuousClock`：
+    /// 每次至多睡 1 s、醒来按 `Date()` 重算剩余时间，系统时间被调动时误差上限约 1 s，与每秒刷新的粒度一致（codex R2-P1）。
+    /// 被取消（deadline 变了 / 菜单关了）⇒ 什么都不写。
+    private func markExpired(_ deadline: Date?) async {
+        guard let deadline else { return }
+        while case let remaining = deadline.timeIntervalSinceNow, remaining > 0 {
+            do { try await Task.sleep(for: .seconds(min(remaining, 1))) } catch { return }
+        }
+        guard !Task.isCancelled else { return }
+        expiredDeadline = deadline
     }
 
     /// 文案会到点改口（限流解除）时挂 `TimelineView` 重绘；文案必须在 closure 里用 `context.date` 现算——
     /// 外面先算好的字符串包进 Timeline，到点重绘的仍是旧字符串（Plan 2026-10-21 §2.2 R1-1）。挂不挂由 core 判断。
     /// 用每秒一次的 periodic，不用 `.explicit([until])`（Day 24 真机诊断日志实测）：菜单栏弹窗里 explicit 只在打开时渲染，
     /// 到点那次从不触发；且只给 `[until]` 时首次渲染的 `context.date` 就是 until 本身，没到点就已改口。
-    /// 只在限流态挂，弹窗关着时不渲染，代价可忽略。
+    /// 只在限流态、且解除时刻 + 1 s 之前挂（Day 26：改口之后摘掉，见 `markExpired`）；弹窗关着时不渲染。
     @ViewBuilder
     private func refreshing<Content: View>(@ViewBuilder _ content: @escaping (Date) -> Content) -> some View {
-        if RuntimeUpdatePresentation.needsPeriodicRefresh(for: store.state, recheckFailure: store.recheckFailure) {
+        if let deadline = refreshDeadline, deadline != expiredDeadline,
+           RuntimeUpdatePresentation.needsPeriodicRefresh(for: store.state, recheckFailure: store.recheckFailure, now: Date()) {
             // 显式左对齐：closure 里的多行默认被居中包起来，改口后行宽变化，较短的状态行会被挤到中间（真机截图实测）。
             TimelineView(.periodic(from: Date(), by: 1)) { context in
                 VStack(alignment: .leading, spacing: 6) { content(context.date) }

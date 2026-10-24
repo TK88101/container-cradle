@@ -58,7 +58,7 @@ final class CreationCoordinator: Sendable {
 
     /// 占名并启动 `work`（上游调用 + 错误映射，**只映射一次**——codex R2-P2）。
     ///
-    /// - Throws: 同名在途 ⇒ `.creationInProgress`；在途数到上限 ⇒ `.creationLimitReached`。两者都**不跑** `work`。
+    /// - Throws: 同名在途 ⇒ `.creation(.inProgress)`；在途数到上限 ⇒ `.creation(.limitReached)`。两者都**不跑** `work`。
     ///
     /// 只交出 operationID，**不交出 Task**：唯一的取结果途径是有界的 `awaitOutcome`，
     /// 于是「无界地等上游」在调用方写不出来（R-HANG 守卫据此把 `coordinator.start` 的闭包视为有界）。
@@ -68,9 +68,9 @@ final class CreationCoordinator: Sendable {
     ) throws(RuntimeError) -> CreationOperationID {
         try state.withLock { (state) throws(RuntimeError) -> CreationOperationID in
             // 同名先于上限：用户要知道的是「这个名字正在建」，而不是笼统的「太多了」。
-            guard state.reservations[name] == nil else { throw .creationInProgress(name: name) }
+            guard state.reservations[name] == nil else { throw .creation(.inProgress(name: name)) }
             guard state.reservations.count < Self.maxConcurrentCreations else {
-                throw .creationLimitReached(limit: Self.maxConcurrentCreations)
+                throw .creation(.limitReached(limit: Self.maxConcurrentCreations))
             }
 
             let operationID = CreationOperationID()

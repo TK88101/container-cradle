@@ -133,11 +133,11 @@ public protocol ContainerRuntimeClient: Sendable {
 
     /// 取回一次**已超时**的 create / clone 的真实结果（Day 25，Plan 2026-10-22 §2.2）。
     ///
-    /// `operationID` 只来自那次 create 抛出的 `.outcomeUnknown(reason:pending:)`——按它取、不按名字取，
+    /// `operationID` 只来自那次 create 抛出的 `.creation(.outcomeUnknown(reason:pending:))`——按它取、不按名字取，
     /// 拿到的就一定是**那一次**的结果（codex R2-P0）。最多等 `budget`（UX 等待预算，不是完成保证）。
     /// - 那次 create 成功 ⇒ 返回新容器的 `ContainerID`；失败 ⇒ 抛它的确定错误。
-    /// - 预算内仍没结果 / 被取消 ⇒ `.outcomeUnknown(pending: operationID)`，可再等。
-    /// - 结果已取不回（被取走、被放弃、被淘汰、不是你的）⇒ `.outcomeUnknown(pending: nil)`。
+    /// - 预算内仍没结果 / 被取消 ⇒ `.creation(.outcomeUnknown(pending: operationID))`，可再等。
+    /// - 结果已取不回（被取走、被放弃、被淘汰、不是你的）⇒ `.creation(.outcomeUnknown(pending: nil))`。
     func awaitPendingCreation(_ operationID: CreationOperationID, within budget: Duration) async throws(RuntimeError) -> ContainerID
 
     /// 宣告不再取这次的结果（所有权结束，不是 TTL）。幂等。**不放开名字**：上游调用可能仍会建出容器，
