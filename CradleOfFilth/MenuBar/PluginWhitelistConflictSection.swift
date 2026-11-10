@@ -6,14 +6,16 @@ import SwiftUI
 /// 只可能来自升级前勾过的历史条目（现在勾选框对它们禁用）。supervisor 每一轮都跳过它们、不算失败——
 /// 于是「已配置却永远不会被拉起」这件事只能在这里被看见。**不自动删**：条目是用户的配置资产。
 ///
-/// 与 `StaleWhitelistSection` 同形（同一档确认），刻意不合并：两者告诉用户的事不同（容器没了 / 容器归插件管）。
+/// 与 `StaleWhitelistSection` 同形（同一档、行内确认），刻意不合并：两者告诉用户的事不同（容器没了 / 容器归插件管）。
 struct PluginWhitelistConflictSection: View {
 
     let conflicts: [WhitelistPluginConflict]
 
-    let onRemove: @MainActor (ContainerID) -> Void
+    /// 正在等确认的那一条（父视图持有，与失效条目区块共用；见 `InlineRemoveControl`）。
+    let pendingRemoval: ContainerID?
+    let onPendingChange: @MainActor (ContainerID?) -> Void
 
-    @State private var pendingRemoval: ContainerID?
+    let onRemove: @MainActor (ContainerID) -> Void
 
     var body: some View {
         if !conflicts.isEmpty {
@@ -33,23 +35,6 @@ struct PluginWhitelistConflictSection: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .confirmationDialog(
-                Text("Remove \(pendingRemoval?.rawValue ?? "") from the whitelist?"),
-                isPresented: Binding(
-                    get: { pendingRemoval != nil },
-                    set: { if !$0 { pendingRemoval = nil } }
-                ),
-                titleVisibility: .visible
-            ) {
-                Button("Remove", role: .destructive) {
-                    // 校验在 core（`PluginWhitelistConflictRemoval.perform`：先刷新再判定）。
-                    if let id = pendingRemoval { onRemove(id) }
-                    pendingRemoval = nil
-                }
-                Button("Cancel", role: .cancel) { pendingRemoval = nil }
-            } message: {
-                Text("The container itself is not touched. Removing the entry only edits your whitelist.")
-            }
         }
     }
 
@@ -66,16 +51,14 @@ struct PluginWhitelistConflictSection: View {
 
             Spacer(minLength: 0)
 
-            Button(role: .destructive) {
-                pendingRemoval = conflict.entry.id
-            } label: {
-                Label("Remove", systemImage: "trash")
-                    .labelStyle(.iconOnly)
-            }
-            .buttonStyle(.borderless)
-            // 名称带 id：同 `StaleWhitelistSection`（读屏分不清每行的 Remove）。
-            .accessibilityLabel(Text("Remove \(conflict.entry.id.rawValue) from the whitelist"))
-            .help("Remove \(conflict.entry.id.rawValue) from the whitelist")
+            // 校验在 core（`PluginWhitelistConflictRemoval.perform`：先刷新再判定）。
+            InlineRemoveControl(
+                id: conflict.entry.id,
+                isPending: pendingRemoval == conflict.entry.id,
+                onBegin: { onPendingChange(conflict.entry.id) },
+                onConfirm: { onPendingChange(nil); onRemove(conflict.entry.id) },
+                onCancel: { onPendingChange(nil) }
+            )
         }
     }
 }

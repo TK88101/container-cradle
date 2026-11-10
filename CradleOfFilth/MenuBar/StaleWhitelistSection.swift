@@ -17,7 +17,7 @@ import SwiftUI
 /// 此时若把它们列出来说「这些失效了」，用户点几下就把整份配置清空了——
 /// 而那正是这个 App 唯一该活着的时刻。
 ///
-/// ## 为什么有确认对话框，又为什么只到这一档
+/// ## 为什么要确认，又为什么只到这一档（确认在行内，见 `InlineRemoveControl`）
 ///
 /// 白名单是配置资产，一键永久删除该有个确认。但**只到确认这一档为止**：
 /// 删 volume 要求用户手打卷名（那是加密后不可恢复的数据），这里删错了重新勾一次就回来。
@@ -26,10 +26,12 @@ struct StaleWhitelistSection: View {
 
     let entries: [WhitelistEntry]
 
+    /// 正在等确认的那一条（父视图持有，与插件冲突区块共用；见 `InlineRemoveControl`）。
+    let pendingRemoval: ContainerID?
+    let onPendingChange: @MainActor (ContainerID?) -> Void
+
     /// 隔离写进类型：它会去改配置文件，只能从主线程上的那颗按钮触发。
     let onRemove: @MainActor (ContainerID) -> Void
-
-    @State private var pendingRemoval: ContainerID?
 
     var body: some View {
         if !entries.isEmpty {
@@ -49,24 +51,6 @@ struct StaleWhitelistSection: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .confirmationDialog(
-                Text("Remove \(pendingRemoval?.rawValue ?? "") from the whitelist?"),
-                isPresented: Binding(
-                    get: { pendingRemoval != nil },
-                    set: { if !$0 { pendingRemoval = nil } }
-                ),
-                titleVisibility: .visible
-            ) {
-                Button("Remove", role: .destructive) {
-                    // 校验不在这里——它在 `StaleWhitelistRemoval.perform`（core，可测），
-                    // 那边先刷新再判定。这里只负责把意图递过去。
-                    if let id = pendingRemoval { onRemove(id) }
-                    pendingRemoval = nil
-                }
-                Button("Cancel", role: .cancel) { pendingRemoval = nil }
-            } message: {
-                Text("The container is gone. Removing the entry only edits your whitelist.")
-            }
         }
     }
 
@@ -80,19 +64,14 @@ struct StaleWhitelistSection: View {
 
             Spacer(minLength: 0)
 
-            // `role: .destructive` 与 Images / Volumes / 容器详情三处同类触发按钮一致：
-            // 它同时决定 AX trait 与配色，漏掉这一处会让读屏对「同样是删」的四个入口说法不一。
-            Button(role: .destructive) {
-                pendingRemoval = entry.id
-            } label: {
-                Label("Remove", systemImage: "trash")
-                    .labelStyle(.iconOnly)
-            }
-            .buttonStyle(.borderless)
-            // ★ 名称必须带 id：这一块里每行都是一颗 Remove 按钮，
-            //   读屏用户听到三遍「移除」分不清哪一行——那等于没说（P2-E 的教训）。
-            .accessibilityLabel(Text("Remove \(entry.id.rawValue) from the whitelist"))
-            .help("Remove \(entry.id.rawValue) from the whitelist")
+            // 校验不在这里——在 `StaleWhitelistRemoval.perform`（core，可测），那边先刷新再判定。
+            InlineRemoveControl(
+                id: entry.id,
+                isPending: pendingRemoval == entry.id,
+                onBegin: { onPendingChange(entry.id) },
+                onConfirm: { onPendingChange(nil); onRemove(entry.id) },
+                onCancel: { onPendingChange(nil) }
+            )
         }
     }
 }

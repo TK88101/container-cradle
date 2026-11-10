@@ -102,6 +102,13 @@
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "新增掛載" } }
       }
     },
+    "Ask before removing %@ from the whitelist" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ をホワイトリストから削除する前に確認" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认后再将 %@ 从白名单移除" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "確認後再將 %@ 從白名單移除" } }
+      }
+    },
     "Below is the state before the runtime stopped, not the current state." : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "以下はランタイム停止前の状態であり、現在の状態ではありません。" } },
@@ -114,6 +121,13 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "キャンセル" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "取消" } }
+      }
+    },
+    "Cancel removing %@ from the whitelist" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ のホワイトリストからの削除をキャンセル" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消将 %@ 从白名单移除" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "取消將 %@ 從白名單移除" } }
       }
     },
     "Cannot confirm the redaction scope; logs are hidden for now · Retry" : {
@@ -565,13 +579,6 @@
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "把 %@ 從白名單移除" } }
       }
     },
-    "Remove %@ from the whitelist?" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ をホワイトリストから削除しますか？" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "要把 %@ 从白名单移除吗？" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "要把 %@ 從白名單移除嗎？" } }
-      }
-    },
     "Remove this row" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "この行を削除" } },
@@ -689,20 +696,6 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "コンテナとその書き込みレイヤーを削除します。ボリュームのデータには影響しません。" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将删除该容器及其可写层。Volume 数据不受影响。" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "將刪除該容器及其可寫層。Volume 資料不受影響。" } }
-      }
-    },
-    "The container is gone. Removing the entry only edits your whitelist." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コンテナ自体はもうありません。項目を削除しても、変わるのはホワイトリストだけです。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "容器本身已经没了。移除条目只会改动你的白名单。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "容器本身已經沒了。移除項目只會改動你的白名單。" } }
-      }
-    },
-    "The container itself is not touched. Removing the entry only edits your whitelist." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コンテナ自体には触れません。項目を削除しても、ホワイトリストが変わるだけです。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不会触碰容器本身。移除条目只会修改你的白名单。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "不會觸碰容器本身。移除項目只會修改你的白名單。" } }
       }
     },
     "The container runtime is not running" : {

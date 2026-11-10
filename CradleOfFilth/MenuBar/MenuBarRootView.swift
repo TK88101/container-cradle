@@ -13,6 +13,10 @@ struct MenuBarRootView: View {
 
     @State private var loginItem = LoginItem()
 
+    /// 白名单两个区块共用的「正在等确认移除的那一条」（`InlineRemoveControl`）。一个就够：
+    /// 同一 id 不可能同时是孤儿（不在列表里）又是插件冲突（在列表里），一次也只该有一行在确认。
+    @State private var pendingWhitelistRemoval: ContainerID?
+
     /// 打开容器详情窗口用（详情是独立 `Window` scene，见 `CradleOfFilthApp`）。
     @Environment(\.openWindow) private var openWindow
 
@@ -46,6 +50,8 @@ struct MenuBarRootView: View {
             footer
         }
         .frame(width: 320)
+        // 菜单收起时丢掉「等确认」：否则下次打开某一行莫名停在确认态（Plan 2026-11-10-inline-remove-confirm R1）。
+        .onDisappear { pendingWhitelistRemoval = nil }
         // 菜单每次打开都重新拉一次：没有事件流（`XPCRoute.containerEvent` 从未接线），
         // 「打开时刷新」是此刻唯一能保证数据不陈旧的时机。
         // 白名单也重读一次：用户可能刚在 Finder 里手改了那个 JSON。
@@ -180,6 +186,8 @@ struct MenuBarRootView: View {
                 entries: model.whitelist.entries,
                 listState: model.containers.state
             ),
+            pendingRemoval: pendingWhitelistRemoval,
+            onPendingChange: { pendingWhitelistRemoval = $0 },
             onRemove: { id in
                 // 校验也在 core：`perform` 先刷新再判定，判定与写入之间不跨 await。
                 // 这里只把意图递过去——view 里不许有「现在还能不能删」的判断。
@@ -199,6 +207,8 @@ struct MenuBarRootView: View {
                 entries: model.whitelist.entries,
                 listState: model.containers.state
             ),
+            pendingRemoval: pendingWhitelistRemoval,
+            onPendingChange: { pendingWhitelistRemoval = $0 },
             onRemove: { id in
                 Task { await PluginWhitelistConflictRemoval.perform(
                     id: id, containers: model.containers, whitelist: model.whitelist
