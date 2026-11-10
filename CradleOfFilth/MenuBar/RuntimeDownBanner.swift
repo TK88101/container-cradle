@@ -98,6 +98,8 @@ struct RuntimeDownBanner: View {
             name
         case .creation(.limitReached(let limit)):
             String(limit)
+        case .creation(.runtimeTooOldForRemoteImage(let running)):
+            running.description
         }
     }
 }

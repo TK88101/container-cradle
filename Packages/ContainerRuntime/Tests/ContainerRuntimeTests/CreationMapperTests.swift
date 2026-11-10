@@ -147,4 +147,18 @@ struct CreationMapperTests {
         #expect(inputs.management.publishPorts.isEmpty)
         #expect(inputs.management.publishSockets.isEmpty)
     }
+
+    /// Day 28（Plan 2026-11-10-pin-1.7.1 §2.1）：1.7.1 起 DNS flags 为空时，上游 `Utility.dnsConfiguration`
+    /// 改继承 daemon 的 `config.toml [container.dns]`——与 `container create` 不带 `--dns*` 同语义，刻意跟随。
+    /// 这条守的是「我们确实什么都不传」：哪天在这里填了值，就会悄悄盖掉用户自己的 DNS 配置。
+    @Test("DNS flags 全空、未禁用 DNS（继承用户 config.toml 的前提）")
+    func dnsFlagsAreEmptySoUserConfigApplies() throws {
+        let management = CreationMapper.inputs(for: try makeSpec()).management
+
+        #expect(management.dns.domain == nil)
+        #expect(management.dns.nameservers.isEmpty)
+        #expect(management.dns.searchDomains.isEmpty)
+        #expect(management.dns.options.isEmpty)
+        #expect(management.dnsDisabled == false)
+    }
 }

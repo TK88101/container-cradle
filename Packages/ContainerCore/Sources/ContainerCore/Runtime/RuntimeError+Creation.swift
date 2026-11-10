@@ -25,5 +25,10 @@ extension RuntimeError {
         /// 本 App 已有 `limit` 个 create / clone 结果未定，**这次没有发出**（Day 25）。
         /// 客户端自我保护阈值，**不是**运行时故障诊断（codex R6-P2）。
         case limitReached(limit: Int)
+
+        /// 运行中的 apiserver（`running`）早于 1.6.1、且镜像不在本地，**这次没有发出**（Day 28，Plan 2026-11-10-pin-1.7.1 §2.1 b′）。
+        /// 本 App 的 client（1.7.1）装配时会对未 pull 的镜像发 `.imagePlatforms`，1.6.1 前的 server 没有这条路由、
+        /// 也不回复——放行就会挂到 create 超时。先 pull（走旧路由）或更新运行时即可。
+        case runtimeTooOldForRemoteImage(running: RuntimeVersion)
     }
 }

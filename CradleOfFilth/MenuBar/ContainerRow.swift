@@ -85,7 +85,7 @@ struct ContainerRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .opacity(isStale ? 0.45 : 1)
+        .opacity(isStale ? VisualOpacity.dimmed : 1)
     }
 
     /// 状态颜色**只是提示，不是唯一信道**——右侧永远有文字标签。

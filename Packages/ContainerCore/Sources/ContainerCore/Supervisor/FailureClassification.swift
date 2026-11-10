@@ -47,6 +47,9 @@ extension FailureKind {
             switch creation {
             case .outcomeUnknown, .inProgress, .limitReached:
                 self = .transient
+            case .runtimeTooOldForRemoteImage:
+                // 重试不会改变运行中 server 的版本——等它被更新才有意义。绝不进 `.transient`（计入熔断）。
+                self = .permanent
             }
         }
     }

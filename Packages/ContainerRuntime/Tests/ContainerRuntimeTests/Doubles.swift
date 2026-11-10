@@ -28,6 +28,8 @@ actor FakeUpstreamClient: UpstreamClient {
         case pull(String)
         case deleteContainer(id: String, force: Bool)
         case cloneCreate(String)
+        case apiServerVersion
+        case imageLocal(String)
     }
 
     struct Failure: Error, Equatable {
@@ -164,6 +166,25 @@ actor FakeUpstreamClient: UpstreamClient {
 
         if let failCreate { throw failCreate }
         return createResultID ?? inputs.id
+    }
+
+    // MARK: - Day 28 b′：版本探测 / 本地性
+
+    /// 默认＝当前 pin（1.7.1）、镜像在本地：既有 create 测试走的仍是「直接装配」那条路。
+    private var serverVersionResult: Result<String, any Error> = .success("1.7.1")
+    private var imageLocalResult: Result<Bool, any Error> = .success(true)
+
+    func setServerVersion(_ result: Result<String, any Error>) { serverVersionResult = result }
+    func setImageLocal(_ result: Result<Bool, any Error>) { imageLocalResult = result }
+
+    func apiServerVersion() async throws -> String {
+        calls.append(.apiServerVersion)
+        return try serverVersionResult.get()
+    }
+
+    func isImageLocal(reference: String) async throws -> Bool {
+        calls.append(.imageLocal(reference))
+        return try imageLocalResult.get()
     }
 
     // MARK: - Day 16：pull（T6.2）

@@ -154,10 +154,8 @@ struct CloneContainerWindowView: View {
                     Button("Clone") {
                         Task { await submit() }
                     }
-                    .buttonStyle(.borderedProminent)
-                    // borderedProminent 禁用时只略微变暗，与可点几乎无差：禁用就再降透明度（Plan 2026-10-23 §2.3）。
-                    // 不用 `.tint(.gray)`：本 App 的窗口常是非活动样式，prominent 按钮本就不上强调色，tint 看不出差别（T8 实测）。
-                    .opacity(store.phase.isBusy ? 0.45 : 1)
+                    // 禁用时的淡化由 style 读环境完成（Plan 2026-11-10）。
+                    .buttonStyle(.primaryAction)
                     // disabled 只是体验层（真防线是 store 的单飞门）。
                     .disabled(store.phase.isBusy)
                 }

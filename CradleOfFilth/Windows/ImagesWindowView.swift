@@ -271,7 +271,8 @@ private struct PullImageSheet: View {
                 .onSubmit { startPull() }
 
                 Button("Pull") { startPull() }
-                    .buttonStyle(.borderedProminent)
+                    // 禁用时的淡化由 style 读环境完成（Plan 2026-11-10）。
+                    .buttonStyle(.primaryAction)
                     // pulling / cancelling 中禁用（呼应 core 单飞门，UI 只是体验层）；
                     // ref 合法性判据 = `ImageRef.init`（domain 单点，不在 view 抄规则）。
                     .disabled(isBusy || ImageRef(referenceText) == nil)

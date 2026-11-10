@@ -2,6 +2,7 @@ import ContainerAPIClient
 import ContainerPersistence
 import ContainerResource
 import Containerization
+import ContainerizationError
 import Foundation
 import Logging
 import SystemPackage
@@ -48,6 +49,14 @@ protocol UpstreamClient: Sendable {
     /// **全 straight-line、无判断**——spec→inputs 的映射由纯 `CreationMapper` 做（已测），
     /// 错误映射 / XPCTimeout 在上层 `LiveContainerRuntimeClient`。这一层只把「装配 + create」捆成一步。
     func createContainer(_ inputs: CreationMapper.CreateInputs) async throws -> String
+
+    /// Day 28 b′：运行中 apiserver 自报的版本串（`ClientHealthCheck.ping` 的 `apiServerVersion`）。
+    /// 直线转发；「旧到要短路」的判断在 `CreatePreflight`，由 `LiveContainerRuntimeClient` 编排。
+    func apiServerVersion() async throws -> String
+
+    /// Day 28 b′：镜像在不在本地——**上游 `ClientImage.get` 是唯一事实来源**（ref 规范化随上游，
+    /// 走 `.imageList`，新旧 server 都有）。只有 `.notFound` ⇒ false，其它错误原样抛（`CreatePreflight.isPresent`）。
+    func isImageLocal(reference: String) async throws -> Bool
 
     /// pull（T6.2）：`ClientImage.pull` 的直线转发，进度经 `onProgress` **反向 XPC** 回投。
     /// **跨批折叠/累积是判断**（T2b「字节假 0」的高发地：只数 set* 漏掉跨批 add*），它住可测的
@@ -152,6 +161,9 @@ struct LiveUpstreamClient: UpstreamClient {
     /// create adapter 的 `containerConfigFromFlags` 要一个 `Logger`。GUI 无终端，label 只用于上游内部诊断。
     private static let log = Logger(label: "cof.container-runtime")
 
+    /// ping daemon 的 XPC 等待上限（create 装配的 config 加载与 Day 28 版本探测共用）。外层另有 `XPCTimeout`。
+    private static let pingTimeout: Duration = .seconds(10)
+
     func list() async throws -> [ContainerSnapshot] {
         try await client.list()
     }
@@ -208,6 +220,17 @@ struct LiveUpstreamClient: UpstreamClient {
         )
         try await client.create(configuration: config, kernel: kernel, initImage: initImage)
         return inputs.id
+    }
+
+    func apiServerVersion() async throws -> String {
+        try await ClientHealthCheck.ping(timeout: Self.pingTimeout).apiServerVersion
+    }
+
+    func isImageLocal(reference: String) async throws -> Bool {
+        let systemConfig = try await Self.loadSystemConfig()
+        return try await CreatePreflight.isPresent {
+            _ = try await ClientImage.get(reference: reference, containerSystemConfig: systemConfig)
+        }
     }
 
     func pullImage(reference: String, onProgress: @escaping ProgressUpdateHandler) async throws {
@@ -284,7 +307,7 @@ struct LiveUpstreamClient: UpstreamClient {
     /// config、返回 stock 默认值，然后**自称权威**——自定义的 vminit 就这么被暴露给删除（V3 的原样灾难）。
     /// ping 走 XPC 问 daemon，与我们进程的 env 无关。
     private static func loadSystemConfig() async throws -> ContainerSystemConfig {
-        let health = try await ClientHealthCheck.ping(timeout: .seconds(10))
+        let health = try await ClientHealthCheck.ping(timeout: Self.pingTimeout)
         return try await ConfigurationLoader.load(
             configurationFiles: [
                 ConfigurationLoader.configurationFile(
@@ -313,5 +336,18 @@ protocol PathChecker: Sendable {
 struct FileSystemPathChecker: PathChecker {
     func fileExists(atPath path: String) -> Bool {
         FileManager.default.fileExists(atPath: path)
+    }
+}
+
+extension CreatePreflight {
+    /// 上游本地查询 → 本地性（Day 28 b′）。**只有 `.notFound` 判为不在本地**；其它错误（XPC 失败、列表失败……）
+    /// 原样抛出，由上层错误映射处理——把它们当成「不在本地」会误拦，也会掩盖真故障。
+    static func isPresent(_ lookup: () async throws -> Void) async throws -> Bool {
+        do {
+            try await lookup()
+            return true
+        } catch let error as ContainerizationError where error.isCode(.notFound) {
+            return false
+        }
     }
 }

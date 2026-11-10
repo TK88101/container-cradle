@@ -417,15 +417,33 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
     /// Day 25：经 `CreationCoordinator` 占名（同名在途 ⇒ `.creation(.inProgress)`，不调上游），超时带回 operationID。
     public func create(_ spec: ContainerCreationSpec) async throws(RuntimeError) -> ContainerID {
         let inputs = CreationMapper.inputs(for: spec)
-        let operationID = try coordinator.start(name: spec.name.value) { [upstream, errors] in
+        let operationID = try coordinator.start(name: spec.name.value) { [upstream, errors, timeout] in
             do {
-                let rawID = try await upstream.createContainer(inputs)
+                // Day 28 b′：旧运行时（< 1.6.1）× 未 pull 镜像 ⇒ 不进装配（CreatePreflight 文档）。
+                let rawID = try await CreatePreflight.run(
+                    serverVersion: await Self.runningServerVersion(upstream, timeout: timeout),
+                    isImageLocal: {
+                        try await XPCTimeout.race(after: timeout) {
+                            try await upstream.isImageLocal(reference: inputs.image)
+                        }
+                    },
+                    assemble: { try await upstream.createContainer(inputs) }
+                )
                 return Self.mapCreatedID(rawID, what: "a container")
             } catch {
                 return .failure(await errors.map(error, containerID: nil))
             }
         }
         return try await awaitCreation(operationID)
+    }
+
+    /// Day 28 b′：运行中 server 的版本。读不到 / 超时 / 解析不了 ⇒ nil ⇒ 放行（不比 pin 前更差；
+    /// 真故障会在随后的装配里以原有方式报出来）。`try?` 的上游调用也套 XPCTimeout（本文件开头的约定）。
+    private static func runningServerVersion(_ upstream: any UpstreamClient, timeout: Duration) async -> RuntimeVersion? {
+        let raw = try? await XPCTimeout.race(after: timeout) {
+            try await upstream.apiServerVersion()
+        }
+        return raw.flatMap { RuntimeVersion(parsing: $0) }
     }
 
     /// clone 预填（T6.4）：`get(source)` → `SnapshotMapper.cloneTemplate` 提 image+env+挂载摘要。

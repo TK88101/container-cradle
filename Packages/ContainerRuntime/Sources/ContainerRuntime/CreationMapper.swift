@@ -53,7 +53,8 @@ enum CreationMapper {
     }
 
     static func inputs(for spec: ContainerCreationSpec) -> CreateInputs {
-        // 各字段取值＝上游声明默认（spike V2 全字段档，已真机验通）。
+        // 各字段取值＝上游声明默认（spike V2 全字段档，已真机验通）；例外：arch/os 显式 host/linux——
+        // 产品政策「只建 host-arch / linux 容器」。1.7.1 起上游 CLI 默认改为 nil＝从镜像推断（可自动走 Rosetta），刻意不跟。
         let process = Flags.Process(
             cwd: nil,
             env: serializeEnvironmentForCreate(spec.environment),

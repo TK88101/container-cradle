@@ -114,6 +114,13 @@ struct CreateCloneIntegrationTests {
             let created = try #require(listed.first { $0.id == id }, "create 返回的 id 不在 list 里")
             #expect(created.state == .stopped, "create 出来应是 .stopped，实际 \(created.state)")
 
+            // Day 28（Plan 2026-11-10-pin-1.7.1 §2.1）：1.7.1 起平台经 `PlatformResolver` 选、runtimeHandler 由
+            // client 显式填。读回 server 落地的 configuration，钉住「host-arch / linux」政策与 handler 不变。
+            let configuration = try await ContainerClient().get(id: id.rawValue).configuration
+            #expect(configuration.platform.os == "linux")
+            #expect(configuration.platform.architecture == Arch.hostArchitecture().rawValue)
+            #expect(configuration.runtimeHandler == "container-runtime-linux")
+
             // 显式删 → 从 list 消失（delete 的确定序列真机验证）。
             try await client.delete(id: id)
             let after = try await client.list()

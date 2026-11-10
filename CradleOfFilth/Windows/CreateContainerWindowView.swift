@@ -247,9 +247,7 @@ struct CreateContainerWindowView: View {
     }
 
     private func submitSection(fieldError: ContainerCreationForm.FieldError?) -> some View {
-        // `.disabled` 与主按钮的降透明度共用同一个条件，免得两处漂移。
-        let submitDisabled = fieldError != nil || isSubmitting
-        return Section {
+        Section {
             // 按钮行与进行中提示同一个 Form 行：提示为 nil 时不留空行（Plan 2026-10-23 §2.2）。
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
@@ -269,13 +267,11 @@ struct CreateContainerWindowView: View {
                     Button("Create & Start") {
                         Task { await submit(startAfterCreate: true) }
                     }
-                    .buttonStyle(.borderedProminent)
-                    // borderedProminent 禁用时只略微变暗，与可点几乎无差：禁用就再降透明度（Plan 2026-10-23 §2.3）。
-                    // 不用 `.tint(.gray)`：本 App 的窗口常是非活动样式，prominent 按钮本就不上强调色，tint 看不出差别（T8 实测）。
-                    .opacity(submitDisabled ? 0.45 : 1)
+                    // 禁用时的淡化由 style 读环境完成（Plan 2026-11-10）。
+                    .buttonStyle(.primaryAction)
                 }
                 // disabled 只是体验层（真防线是 store 的单飞拒绝制）。
-                .disabled(submitDisabled)
+                .disabled(fieldError != nil || isSubmitting)
 
                 if isSubmitting {
                     CreationProgressNote(

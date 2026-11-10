@@ -58,8 +58,12 @@ logs, stats, volume/image management — is convenience on top.
 ## Requirements
 
 - macOS 15+ on Apple Silicon
-- [apple/container](https://github.com/apple/container) 1.6.0 installed and initialized
-  (the app is built against the 1.6.0 client; other runtime versions are untested)
+- [apple/container](https://github.com/apple/container) 1.7.1 installed and initialized
+  (the app is built against the 1.7.1 client; other runtime versions are untested).
+  On runtimes older than 1.6.1 the app can only create containers from images that
+  are already pulled — pull the image first, or update the runtime.
+- New containers inherit the DNS defaults from your container `config.toml`
+  (`[container.dns]`), the same as `container create` without `--dns*` flags.
 - Xcode 27+ (only if building from source)
 
 ## Install
@@ -119,7 +123,7 @@ Same distribution model as Docker Desktop / OrbStack / Podman Desktop.
   the script for malware); the custom explanation the app passes is not
   displayed. The menu shows which version is being installed and that the
   runtime and running containers will restart while the prompt is open.
-- Upstream dependency is pinned (`exact: 1.6.0`) and isolated behind an
+- Upstream dependency is pinned (`exact: 1.7.1`) and isolated behind an
   anti-corruption layer (a small, test-enforced allowlist of files); the core
   package cannot even import it.
 

@@ -123,6 +123,7 @@ public struct OSLogSupervisorLog: SupervisorLog {
         case .creation(.outcomeUnknown): "outcomeUnknown"
         case .creation(.inProgress): "creationInProgress"
         case .creation(.limitReached): "creationLimitReached"
+        case .creation(.runtimeTooOldForRemoteImage): "creationRuntimeTooOldForRemoteImage"
         }
     }
 
@@ -141,6 +142,8 @@ public struct OSLogSupervisorLog: SupervisorLog {
             name
         case .creation(.limitReached(let limit)):
             String(limit)
+        case .creation(.runtimeTooOldForRemoteImage(let running)):
+            running.description
         }
     }
 }

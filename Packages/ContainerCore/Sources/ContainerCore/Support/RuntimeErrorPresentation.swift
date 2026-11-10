@@ -56,6 +56,12 @@ enum RuntimeErrorPresentation {
                     "\(limit) container creations are still in progress. Wait for them to finish, then try again. If this persists, reopen the app.",
                 locale: locale
             )
+        case .runtimeTooOldForRemoteImage(let running):
+            String(
+                coreLocalized:
+                    "The running container runtime (\(running.description)) can't create from an image that hasn't been pulled yet. Pull the image first, or update the runtime.",
+                locale: locale
+            )
         }
     }
 
@@ -66,7 +72,7 @@ enum RuntimeErrorPresentation {
         case .creation(let creation):
             // 对 inner 穷尽 switch 是故意的：加 `Creation` 的 case 必须在这里表态它算不算「失败」（Plan 2026-10-23 §2.1）。
             switch creation {
-            case .outcomeUnknown, .inProgress, .limitReached:
+            case .outcomeUnknown, .inProgress, .limitReached, .runtimeTooOldForRemoteImage:
                 creationDetail(creation, locale: locale)
             }
         case .runtimeUnavailable, .containerNotFound, .mountSourceUnavailable, .operationFailed:
