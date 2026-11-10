@@ -165,3 +165,9 @@
 "The running container runtime (%@) can't create from an image that hasn't been pulled yet. Pull the image first, or update the runtime." = "実行中のコンテナランタイム（%@）では、まだ取得していないイメージからは作成できません。先にイメージを取得するか、ランタイムを更新してください。";
 "The runtime has not answered yet. Waiting for the result…" = "ランタイムからまだ応答がありません。結果を待っています…";
 "Still working. The first container after a runtime update can take a few minutes." = "処理中です。ランタイムを更新した直後の最初のコンテナ作成は、数分かかることがあります。";
+
+/* Day 29 — plugin コンテナ */
+"Managed by a plugin" = "プラグインが管理";
+"Managed by plugin “%@”" = "プラグイン「%@」が管理";
+"Container %@ is managed by the plugin “%@”. This app does not start or stop it; use the plugin's own commands." = "コンテナ %1$@ はプラグイン「%2$@」が管理しています。このアプリでは起動・停止しません。プラグイン自身のコマンドを使ってください。";
+"Container %@ is managed by a plugin. This app does not start or stop it; use the plugin's own commands." = "コンテナ %@ はプラグインが管理しています。このアプリでは起動・停止しません。プラグイン自身のコマンドを使ってください。";

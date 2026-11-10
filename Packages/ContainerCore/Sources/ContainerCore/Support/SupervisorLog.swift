@@ -56,6 +56,10 @@ public protocol SupervisorLog: Sendable {
     /// - Parameter error: **实现必须把它的 `reason`/`path` 当不可信文本**（`.private`），
     ///   只有 case 身份与分类可以公开。
     func containerStartFailed(id: ContainerID, generation: RuntimeGeneration, error: RuntimeError)
+
+    /// 白名单条目指向插件管理的容器，这一轮**跳过**（Day 29）——预期行为，不是失败，不进 outcome。
+    /// - Parameter owner: 上游标签值，任意字串：实现必须 `.private`（Plan R1-3）。
+    func pluginEntrySkipped(id: ContainerID, owner: ContainerPluginOwner, generation: RuntimeGeneration)
 }
 
 /// 默认实现：什么都不记。**生产以外的所有构造点用它**（测试注 spy，`AppModel` 注 `OSLogSupervisorLog`）。
@@ -72,6 +76,7 @@ public struct NullSupervisorLog: SupervisorLog {
     public func reconcileOutcome(_ outcome: ReconcileOutcome, generation: RuntimeGeneration) {}
     public func notice(_ notice: SupervisorNotice) {}
     public func containerStartFailed(id: ContainerID, generation: RuntimeGeneration, error: RuntimeError) {}
+    public func pluginEntrySkipped(id: ContainerID, owner: ContainerPluginOwner, generation: RuntimeGeneration) {}
 }
 
 /// supervisor 这条线的统一日志身份。**一个常量，两处用**（`OSLogSupervisorLog` 与 app 的

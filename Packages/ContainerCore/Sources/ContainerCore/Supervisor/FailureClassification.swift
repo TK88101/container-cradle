@@ -41,6 +41,11 @@ extension FailureKind {
             // 这一档才是熔断要防的东西：容器起来就崩、崩了又被拉起。
             self = .transient
 
+        case .pluginManaged:
+            // 归属不会因为重试而改变（Day 29）。supervisor 路径上 engine 会先把它当「跳过」截走、
+            // 根本到不了这里；其余消费者按 permanent。绝不进 `.transient`（计入熔断）。
+            self = .permanent
+
         case .creation(let creation):
             // 只由 create / clone 产生（超时 / 本 App 挡下），不在 supervisor 路径上；与 `.operationFailed` 同档。
             // 对 inner 穷尽 switch 是故意的：加 `Creation` 的 case 必须在这里表态（Plan 2026-10-23 §2.1）。

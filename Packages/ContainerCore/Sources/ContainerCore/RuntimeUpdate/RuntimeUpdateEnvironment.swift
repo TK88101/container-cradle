@@ -141,6 +141,10 @@ public struct RuntimeUpdateEnvironment: Sendable {
     public var clock: any SupervisorClock
     /// 此刻「已启用的白名单」——停机那一刻冻结进意图记录（AD6）。
     public var managedContainerIDs: @MainActor @Sendable () async -> Set<ContainerID>
+    /// 此刻归插件管的容器（Day 29，Plan G5）：停机前从「在跑容器」快照里减掉——更新器**不复原**它们
+    /// （插件自己的启动语义不是裸 `container start`，例如 builder 会比对配置、必要时重建），也不交给 supervisor。
+    /// best-effort：生产上优先取新鲜 `list()`，失败回退菜单缓存。默认空集 = 今天的行为。
+    public var pluginContainerIDs: @MainActor @Sendable () async -> Set<ContainerID>
     /// 请 supervisor 立即 reconcile 白名单（恢复 / 手动启动路径用：App 冷启动时 supervisor 走 baseline，不会自己拉）。
     /// 返回 = 请求已被 supervisor 接受（生产上先排空白名单写入链，再 `Supervisor.reconcileManagedNow()`：先探一次、再同步投递强制请求）。
     public var requestManagedReconcile: @MainActor @Sendable () async -> Void
@@ -161,6 +165,7 @@ public struct RuntimeUpdateEnvironment: Sendable {
         clock: any SupervisorClock = SystemSupervisorClock(),
         log: any RuntimeUpdateLog = OSLogRuntimeUpdateLog(),
         managedContainerIDs: @escaping @MainActor @Sendable () async -> Set<ContainerID>,
+        pluginContainerIDs: @escaping @MainActor @Sendable () async -> Set<ContainerID> = { [] },
         requestManagedReconcile: @escaping @MainActor @Sendable () async -> Void,
         reconcileRequestLimit: Duration = .seconds(30),
         authorizationPrompt: @escaping @Sendable (RuntimeVersion, RuntimeVersion) -> String
@@ -174,6 +179,7 @@ public struct RuntimeUpdateEnvironment: Sendable {
         self.clock = clock
         self.log = log
         self.managedContainerIDs = managedContainerIDs
+        self.pluginContainerIDs = pluginContainerIDs
         self.requestManagedReconcile = requestManagedReconcile
         self.reconcileRequestLimit = reconcileRequestLimit
         self.authorizationPrompt = authorizationPrompt

@@ -247,6 +247,42 @@ struct CreateCloneIntegrationTests {
         }
     }
 
+    // MARK: - ⑥ Day 29：带 plugin 标签的容器——读得到 owner，start / stop 被拒，状态不动
+
+    /// 靶子是**自建**的 `cof-test-*`（CLI 逃生舱打 `com.apple.container.plugin=cof-test`，不启动），
+    /// **不是**本机的 buildkit：buildkit 是用户之后要用的构建器，测试只读它的状态、前后对照。
+    @Test("⑥ plugin 标签：list 读到 owner；start / stop 抛 pluginManaged；容器仍 stopped；buildkit 状态不变")
+    func pluginLabelledContainerIsRefused() async throws {
+        try await sweepLeftovers()
+        try ensureTestImagePresent()
+
+        let client = LiveContainerRuntimeClient()
+        let buildkitBefore = try await client.list().first { $0.id.rawValue == "buildkit" }?.state
+        let name = uniqueName()
+        let created = try cli(["create", "--name", name, "--label", "com.apple.container.plugin=cof-test", Self.testImage])
+        guard created.code == 0 else { throw SmokeError.setupFailed("CLI create 失败：\(created.output)") }
+
+        do {
+            let id = try #require(ContainerID(name))
+            let owner = ContainerPluginOwner(rawValue: "cof-test")
+            let listed = try #require(try await client.list().first { $0.id == id })
+            #expect(listed.pluginOwner == owner)
+            #expect(listed.state == .stopped)
+
+            await #expect(throws: RuntimeError.pluginManaged(id, owner: owner)) { try await client.start(id: id) }
+            await #expect(throws: RuntimeError.pluginManaged(id, owner: owner)) { try await client.stop(id: id) }
+            #expect(try await client.list().first { $0.id == id }?.state == .stopped)
+
+            try await client.delete(id: id)
+            #expect(try await client.list().first { $0.id == id } == nil)
+        } catch {
+            _ = try? cli(["delete", "--force", name])   // CLI 逃生舱兜底（④）
+            throw error
+        }
+
+        #expect(try await client.list().first { $0.id.rawValue == "buildkit" }?.state == buildkitBefore)
+    }
+
     // MARK: - ⑤ Day 25：超时之后上游照样建成 → 凭 operationID 取回（Plan 2026-10-22 T8）
 
     /// 真 XPC 下的外部契约：create 超时报 `.creation(.outcomeUnknown(pending:))`，那次调用之后真的把容器建出来，

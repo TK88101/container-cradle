@@ -48,6 +48,11 @@ public struct WhitelistReconcileEngine: ReconcileEngine {
         for entry in await whitelist.entries() where entry.enabled {
             do {
                 try await client.start(id: entry.id)
+            } catch .pluginManaged(_, let owner) {
+                // ★ Day 29：归插件管的容器**跳过**，不是失败——不进 failures（否则触发「放弃」通知、
+                // 文案还是「Container not found」），也不删白名单条目（菜单冲突区块让用户自己处理）。
+                // 判定在 runtime 的最新快照上做，engine 不先 list（理由见上）。
+                log.pluginEntrySkipped(id: entry.id, owner: owner, generation: generation)
             } catch {
                 // ★ 诊断落点（Day 8）。带 generation（P1-5：可能是已被作废的旧世代，日志据此定位）；
                 // error 的原始文本由 `SupervisorLog` 实现当不可信文本处理（.private）。

@@ -34,6 +34,8 @@ struct MenuBarRootView: View {
 
             staleWhitelist
 
+            pluginConflicts
+
             Divider()
 
             // Day 22：apple/container 运行时更新（探测 + 升级）。
@@ -112,10 +114,12 @@ struct MenuBarRootView: View {
                 .padding(.vertical, 20)
 
         case .loaded(let containers):
-            if containers.isEmpty {
+            // Day 29：只在展示层隐藏 machine / cluster（store 保留全量，孤儿判定才不会误报，Plan F10）。
+            let visible = ContainerListPresentation.visibleInMenu(containers)
+            if visible.isEmpty {
                 emptyState
             } else {
-                rows(containers, isStale: false)
+                rows(visible, isStale: false)
             }
 
         case .failed(let error, let lastKnown):
@@ -135,8 +139,9 @@ struct MenuBarRootView: View {
 
                 // 旧数据照常显示（灰掉）：运行时挂掉时把列表清空，
                 // 用户会以为容器被删了。见 `ContainerListStore.LoadState.failed`。
-                if !lastKnown.isEmpty {
-                    rows(lastKnown, isStale: true)
+                let visibleLastKnown = ContainerListPresentation.visibleInMenu(lastKnown)
+                if !visibleLastKnown.isEmpty {
+                    rows(visibleLastKnown, isStale: true)
                 }
             }
         }
@@ -179,6 +184,23 @@ struct MenuBarRootView: View {
                 // 校验也在 core：`perform` 先刷新再判定，判定与写入之间不跨 await。
                 // 这里只把意图递过去——view 里不许有「现在还能不能删」的判断。
                 Task { await StaleWhitelistRemoval.perform(
+                    id: id, containers: model.containers, whitelist: model.whitelist
+                ) }
+            }
+        )
+        .disabled(model.whitelist.isFrozen)
+    }
+
+    /// 白名单里指向插件管理容器的条目（Day 29）：supervisor 跳过它们，这里让用户看见并自己移除。
+    /// 判定在 core（`WhitelistPluginConflictPolicy`，列表不权威时为空集）；移除先刷新再判定（`PluginWhitelistConflictRemoval`）。
+    private var pluginConflicts: some View {
+        PluginWhitelistConflictSection(
+            conflicts: WhitelistPluginConflictPolicy.conflicts(
+                entries: model.whitelist.entries,
+                listState: model.containers.state
+            ),
+            onRemove: { id in
+                Task { await PluginWhitelistConflictRemoval.perform(
                     id: id, containers: model.containers, whitelist: model.whitelist
                 ) }
             }

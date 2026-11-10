@@ -58,7 +58,8 @@ struct RuntimeDownBanner: View {
         case .runtimeUnavailable: "bolt.slash"
         case .containerNotFound: "questionmark.circle"
         case .mountSourceUnavailable: "externaldrive.badge.questionmark"
-        case .operationFailed, .creation: "exclamationmark.triangle"
+        // `.pluginManaged` 只由 start / stop 产生，列表刷新到不了这里；穷尽 switch 要求表态，沿用通用失败。
+        case .operationFailed, .pluginManaged, .creation: "exclamationmark.triangle"
         }
     }
 
@@ -70,7 +71,7 @@ struct RuntimeDownBanner: View {
         case .containerNotFound: String(localized: "Container not found")
         case .mountSourceUnavailable: String(localized: "Mount source not ready yet")
         // `.creation` 只由 create / clone 产生，列表刷新到不了这里；穷尽 switch 要求表态，沿用通用失败的说法。
-        case .operationFailed, .creation: String(localized: "Operation failed")
+        case .operationFailed, .pluginManaged, .creation: String(localized: "Operation failed")
         }
     }
 
@@ -100,6 +101,9 @@ struct RuntimeDownBanner: View {
             String(limit)
         case .creation(.runtimeTooOldForRemoteImage(let running)):
             running.description
+        // 同上：只由 start / stop 产生、到不了横幅。
+        case .pluginManaged(let id, _):
+            id.rawValue
         }
     }
 }

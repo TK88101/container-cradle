@@ -127,6 +127,13 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
     public func start(id: ContainerID) async throws(RuntimeError) {
         let snapshot = try await fetch(id)
 
+        // ★ Day 29：插件管理的容器，本 App 不碰它的生命周期。位置有讲究：
+        // - 在下面那个 `do` 的**外面**（同 R13 的代码形状论证：落进 catch 会被 `errors.map` 包成
+        //   `.operationFailed` → `.transient` → 计入熔断）；
+        // - 在幂等短路**之前**：在跑的 builder 与停着的 builder 给出同一结论。
+        // 判定用的是刚 `fetch` 到的快照；fetch → launch 之间的非原子窗口见 Plan 2026-11-10-plugin-exclusion §2.2。
+        try refusePluginManaged(snapshot, id: id)
+
         // 幂等短路。supervisor 会重复下达 start（轮询间隔内容器可能还没起来），
         // 「已经在跑」必须静默成功——官方 CLI 自己就这么短路的。
         guard snapshot.status != .running else { return }
@@ -174,6 +181,9 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
 
     public func stop(id: ContainerID) async throws(RuntimeError) {
         let snapshot = try await fetch(id)
+
+        // Day 29：restart = stop → start，只守 start 会先把插件的容器停掉（Plan R1-1 / R2-1）。
+        try refusePluginManaged(snapshot, id: id)
 
         // 幂等：已经停了就静默成功。
         guard snapshot.status != .stopped else { return }
@@ -605,7 +615,7 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
             switch error {
             case .containerNotFound:
                 return false
-            case .runtimeUnavailable, .operationFailed, .mountSourceUnavailable, .creation:
+            case .runtimeUnavailable, .operationFailed, .mountSourceUnavailable, .pluginManaged, .creation:
                 throw error
             }
         }
@@ -640,6 +650,12 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
             return .failure(.operationFailed(reason: "Upstream created \(what) with an unmappable id: \(rawID)"))
         }
         return .success(id)
+    }
+
+    private func refusePluginManaged(_ snapshot: ContainerSnapshot, id: ContainerID) throws(RuntimeError) {
+        if let owner = SnapshotMapper.pluginOwner(from: snapshot) {
+            throw .pluginManaged(id, owner: owner)
+        }
     }
 
     private func fetch(_ id: ContainerID) async throws(RuntimeError) -> ContainerSnapshot {

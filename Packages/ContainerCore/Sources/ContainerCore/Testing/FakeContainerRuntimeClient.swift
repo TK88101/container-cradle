@@ -470,6 +470,10 @@ public actor FakeContainerRuntimeClient: ContainerRuntimeClient {
         call: Call
     ) throws(RuntimeError) {
         calls.append(call)
+        // 与 Live 同序：fetch 到快照后的**第一件事**就是判 owner（在任何注入的上游失败之前）。
+        if let owner = containers.first(where: { $0.id == id })?.pluginOwner {
+            throw .pluginManaged(id, owner: owner)
+        }
         if let error = injected[operation] { throw error }
 
         guard let index = containers.firstIndex(where: { $0.id == id }) else {
@@ -481,7 +485,8 @@ public actor FakeContainerRuntimeClient: ContainerRuntimeClient {
             id: existing.id,
             image: existing.image,
             state: state,
-            environment: existing.environment
+            environment: existing.environment,
+            pluginOwner: existing.pluginOwner
         )
     }
 }

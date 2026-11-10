@@ -108,6 +108,10 @@ extension RuntimeUpdateStore {
             }
         }
         let managed = await environment.managedContainerIDs()
+        // Day 29（Plan G5）：plugin 容器不进「欠着的」——更新器不复原、supervisor 也不拉。必须在 committed 段之前读（R3-2）。
+        // 没有可过滤的（这次没在跑的、也没继承来的）就不多发一次 `list()`（simplify R1 效率）。
+        let hasCandidates = !running.isEmpty || !(activeIntent?.runningContainerIDs.isEmpty ?? true)
+        let plugins = hasCandidates ? await environment.pluginContainerIDs() : []
 
         guard op == operation, !Task.isCancelled, var intent = activeIntent else { return }
         setStage(.stoppingRuntime, op: op)
@@ -117,7 +121,8 @@ extension RuntimeUpdateStore {
         intent.stopIssued = wasRunning || inherited
         // 这一次又停了一个在跑的运行时 ⇒ 欠一次新的「起运行时」；否则沿用继承来的（已解除的不复活，R4 E）。
         if wasRunning { intent.startDischarged = false }
-        intent.runningContainerIDs = intent.runningContainerIDs + running.filter { !intent.runningContainerIDs.contains($0) }
+        intent.runningContainerIDs = (intent.runningContainerIDs + running.filter { !intent.runningContainerIDs.contains($0) })
+            .filter { !plugins.contains($0) }
         intent.managedContainerIDs = managed.sorted { $0.rawValue < $1.rawValue }
         recordIntent(intent)
         environment.log.jobReady(

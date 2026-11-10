@@ -62,7 +62,7 @@ struct LiveClientIntegrationTests {
         let client = LiveContainerRuntimeClient()
 
         let containers = try await client.list()
-        guard let running = containers.first(where: { $0.state == .running }) else {
+        guard let running = containers.first(where: { $0.state == .running && $0.pluginOwner == nil }) else {
             // 没有正在跑的容器就没什么可测的——但**不能静默通过**，
             // 否则这条测试会在「什么都没测」的情况下常绿。
             Issue.record("真机上没有 running 的容器，这条测试没测到东西（先起一个再跑）")
@@ -87,7 +87,7 @@ struct LiveClientIntegrationTests {
         let client = LiveContainerRuntimeClient()
 
         let containers = try await client.list()
-        guard let running = containers.first(where: { $0.state == .running }) else {
+        guard let running = containers.first(where: { $0.state == .running && $0.pluginOwner == nil }) else {
             Issue.record("真机上没有 running 的容器，这条测试没测到东西（先起一个再跑）")
             return
         }
@@ -115,7 +115,7 @@ struct LiveClientIntegrationTests {
         let client = LiveContainerRuntimeClient()
 
         let containers = try await client.list()
-        guard let running = containers.first(where: { $0.state == .running }) else {
+        guard let running = containers.first(where: { $0.state == .running && $0.pluginOwner == nil }) else {
             Issue.record("真机上没有 running 的容器，这条测试没测到东西（先起一个再跑）")
             return
         }

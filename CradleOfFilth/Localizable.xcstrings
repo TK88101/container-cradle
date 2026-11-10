@@ -9,6 +9,13 @@
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%1$@ %2$@？" } }
       }
     },
+    "%@ is managed by a plugin and can't be auto-started" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ はプラグインが管理しているため、自動起動できません" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@ 由插件管理，无法自动启动" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%@ 由外掛管理，無法自動啟動" } }
+      }
+    },
     "%lld images" : {
       "localizations" : {
         "en" : {
@@ -383,6 +390,13 @@
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Volume 管理…" } }
       }
     },
+    "Managed by a plugin: this app does not auto-start, start or stop it" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プラグインが管理：このアプリでは自動起動・起動・停止しません" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "由插件管理：本 App 不会自动启动、启动或停止它" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "由外掛管理：本 App 不會自動啟動、啟動或停止它" } }
+      }
+    },
     "Managed by supervisor: auto-started after the runtime restarts" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "スーパーバイザーの管理対象：ランタイム再起動後に自動起動" } },
@@ -684,6 +698,13 @@
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "容器本身已經沒了。移除項目只會改動你的白名單。" } }
       }
     },
+    "The container itself is not touched. Removing the entry only edits your whitelist." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コンテナ自体には触れません。項目を削除しても、ホワイトリストが変わるだけです。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不会触碰容器本身。移除条目只会修改你的白名单。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "不會觸碰容器本身。移除項目只會修改你的白名單。" } }
+      }
+    },
     "The container runtime is not running" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "コンテナランタイムが実行されていません" } },
@@ -703,6 +724,13 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "ランタイムの世代が変わりました。ログストリームが古い可能性があります · 再オープン" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "运行时已换代，日志流可能已过期 · 重新打开" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "執行階段已換代，日誌串流可能已過期 · 重新開啟" } }
+      }
+    },
+    "These containers are managed by a plugin, so the supervisor will not start them." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "これらのコンテナはプラグインが管理しているため、supervisor は起動しません。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这些容器由插件管理，supervisor 不会启动它们。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這些容器由外掛管理，supervisor 不會啟動它們。" } }
       }
     },
     "These containers no longer exist, so they will never start." : {
@@ -731,6 +759,13 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "ここに名前を入力" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在此输入名字" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "在此輸入名字" } }
+      }
+    },
+    "Use the plugin's own commands to start or stop it (for example, container builder start)." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "起動・停止はプラグイン自身のコマンドで行ってください（例：container builder start）。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请用该插件自己的命令启动或停止它（例如 container builder start）。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請用該外掛自己的指令啟動或停止它（例如 container builder start）。" } }
       }
     },
     "Value" : {
@@ -1002,6 +1037,13 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "今すぐアップデート" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "立即更新" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "立即更新" } }
+      }
+    },
+    "Whitelist entries the supervisor skips" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "supervisor がスキップするホワイトリスト項目" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "supervisor 会跳过的白名单条目" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "supervisor 會略過的白名單項目" } }
       }
     }
   },

@@ -165,3 +165,9 @@
 "The running container runtime (%@) can't create from an image that hasn't been pulled yet. Pull the image first, or update the runtime." = "正在執行的容器執行階段（%@）無法用尚未拉取的映像建立容器。請先拉取該映像，或更新執行階段。";
 "The runtime has not answered yet. Waiting for the result…" = "執行階段還沒有回應，正在等待結果…";
 "Still working. The first container after a runtime update can take a few minutes." = "仍在進行。執行階段更新後第一次建立容器可能需要幾分鐘。";
+
+/* Day 29 — plugin 容器 */
+"Managed by a plugin" = "由外掛管理";
+"Managed by plugin “%@”" = "由外掛「%@」管理";
+"Container %@ is managed by the plugin “%@”. This app does not start or stop it; use the plugin's own commands." = "容器 %1$@ 由外掛「%2$@」管理。本 App 不會啟動或停止它；請使用該外掛自己的指令。";
+"Container %@ is managed by a plugin. This app does not start or stop it; use the plugin's own commands." = "容器 %@ 由外掛管理。本 App 不會啟動或停止它；請使用該外掛自己的指令。";

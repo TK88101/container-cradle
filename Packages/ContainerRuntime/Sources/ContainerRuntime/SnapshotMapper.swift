@@ -29,8 +29,15 @@ enum SnapshotMapper {
             id: id,
             image: image,
             state: state(from: snapshot.status),
-            environment: environment(from: snapshot.configuration.initProcess.environment)
+            environment: environment(from: snapshot.configuration.initProcess.environment),
+            pluginOwner: pluginOwner(from: snapshot)
         )
+    }
+
+    /// 上游 `ResourceLabelKeys.plugin` 标签（Day 29）。**键存在即算**（值为空串也算——fail-safe），
+    /// 值原样带进 domain 只为展示。上游 CLI 的 machine / cluster 过滤只在 `ContainerCommands`，XPC 不拦。
+    static func pluginOwner(from snapshot: ContainerSnapshot) -> ContainerPluginOwner? {
+        snapshot.configuration.labels[ResourceLabelKeys.plugin].map(ContainerPluginOwner.init(rawValue:))
     }
 
     /// **穷尽 `switch`，不用 rawValue 转换。**

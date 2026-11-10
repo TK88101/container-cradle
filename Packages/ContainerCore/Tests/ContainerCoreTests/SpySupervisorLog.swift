@@ -15,6 +15,7 @@ enum SupervisorLogEntry: Equatable, Sendable {
     case reconcileOutcome(ReconcileOutcome, RuntimeGeneration)
     case notice(SupervisorNotice)
     case containerStartFailed(ContainerID, RuntimeGeneration, RuntimeError)
+    case pluginEntrySkipped(ContainerID, ContainerPluginOwner, RuntimeGeneration)
 }
 
 final class SpySupervisorLog: SupervisorLog, @unchecked Sendable {
@@ -50,5 +51,9 @@ final class SpySupervisorLog: SupervisorLog, @unchecked Sendable {
 
     func containerStartFailed(id: ContainerID, generation: RuntimeGeneration, error: RuntimeError) {
         append(.containerStartFailed(id, generation, error))
+    }
+
+    func pluginEntrySkipped(id: ContainerID, owner: ContainerPluginOwner, generation: RuntimeGeneration) {
+        append(.pluginEntrySkipped(id, owner, generation))
     }
 }

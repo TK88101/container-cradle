@@ -57,6 +57,13 @@ public struct OSLogSupervisorLog: SupervisorLog {
         )
     }
 
+    public func pluginEntrySkipped(id: ContainerID, owner: ContainerPluginOwner, generation: RuntimeGeneration) {
+        // id 口径同上；owner 是上游快照里的任意字串 ⇒ .private（Plan R1-3）。
+        reconcileLog.notice(
+            "whitelist entry skipped: plugin-managed id=\(id.rawValue, privacy: .public) gen=\(generation.pid, privacy: .public)/\(generation.startTime, privacy: .public) owner=\(owner.rawValue, privacy: .private)"
+        )
+    }
+
     // MARK: - allowlist 渲染（只吐安全字段，绝不吐上游文本）
 
     private static func describe(_ state: SupervisorState) -> String {
@@ -119,6 +126,7 @@ public struct OSLogSupervisorLog: SupervisorLog {
         case .containerNotFound: "containerNotFound"
         case .mountSourceUnavailable: "mountSourceUnavailable"
         case .operationFailed: "operationFailed"
+        case .pluginManaged: "pluginManaged"
         // 保留 Day 24–25 的原 case 名（Day 26 嵌套前的写法），既有日志查询照旧可用。
         case .creation(.outcomeUnknown): "outcomeUnknown"
         case .creation(.inProgress): "creationInProgress"
@@ -136,6 +144,8 @@ public struct OSLogSupervisorLog: SupervisorLog {
             id.rawValue
         case .mountSourceUnavailable(let path):
             path
+        case .pluginManaged(let id, let owner):
+            "\(id.rawValue) owner=\(owner.rawValue)"
         case .operationFailed(let reason), .creation(.outcomeUnknown(let reason, _)):
             reason
         case .creation(.inProgress(let name)):

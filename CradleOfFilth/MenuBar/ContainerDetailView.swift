@@ -119,17 +119,23 @@ struct ContainerDetailView: View {
                     .controlSize(.small)
             }
 
-            switch container.state {
-            case .running:
-                Button("Stop") { pendingConfirmation = .stop }
-                Button("Restart") { pendingConfirmation = .restart }
-            case .stopped:
-                Button("Start") {
-                    // 启动不需要确认（计划拍板）：它不丢任何东西。
-                    Task { await onStart() }
+            // Day 29：插件管理的容器不给启停按钮（runtime 已在 start / stop 上拒，UI 只是不让用户撞墙）。
+            if let owner = container.pluginOwner {
+                PluginOwnerCaption(owner: owner, style: .secondary)
+                    .help("Use the plugin's own commands to start or stop it (for example, container builder start).")
+            } else {
+                switch container.state {
+                case .running:
+                    Button("Stop") { pendingConfirmation = .stop }
+                    Button("Restart") { pendingConfirmation = .restart }
+                case .stopped:
+                    Button("Start") {
+                        // 启动不需要确认（计划拍板）：它不丢任何东西。
+                        Task { await onStart() }
+                    }
+                case .stopping, .unknown:
+                    EmptyView()
                 }
-            case .stopping, .unknown:
-                EmptyView()
             }
 
             Spacer()

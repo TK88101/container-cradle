@@ -22,15 +22,25 @@ public struct Container: Sendable, Equatable, Identifiable {
     public let state: ContainerState
     public let environment: [EnvironmentVariable]
 
+    /// 归哪个插件管（`nil` = 普通容器）。非 nil 的容器 supervisor 不拉、菜单不启停（Day 29）。
+    /// 默认 `nil`：既有构造点零改动；只有 runtime 边界（`SnapshotMapper`）读标签填它。
+    public let pluginOwner: ContainerPluginOwner?
+
     public init(
         id: ContainerID,
         image: ImageRef,
         state: ContainerState,
-        environment: [EnvironmentVariable]
+        environment: [EnvironmentVariable],
+        pluginOwner: ContainerPluginOwner? = nil
     ) {
         self.id = id
         self.image = image
         self.state = state
         self.environment = environment
+        self.pluginOwner = pluginOwner
     }
+
+    /// **「归插件管」的唯一判据**（任何 owner，含空串）。supervisor 跳过、菜单不可勾不可启停、
+    /// 更新器不复原，都问这一句——各处各写一遍 `!= nil` / `if let` 会在某天放行某个 owner 时漂开。
+    public var isPluginManaged: Bool { pluginOwner != nil }
 }

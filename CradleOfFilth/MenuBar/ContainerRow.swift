@@ -42,15 +42,27 @@ struct ContainerRow: View {
             // reabstraction thunk。这里的闭包隔离由编译器推断（body 在 @MainActor 上、且它同步
             // 调用 @MainActor 的 onToggleManaged），SE-0431 保证转成 @isolated(any) 时动态保留该隔离。
             // 详见 Docs/plans/2026-08-07-sendable-isolation-fix.md 的 F6。**别顺手简化这一行。**
-            Toggle("", isOn: Binding(get: { isManaged }, set: { onToggleManaged($0) }))
+            // Day 29：插件管理的容器不可纳管——勾选框禁用、恒显示未勾（判据在 core：`Container.isPluginManaged`）。
+            Toggle("", isOn: Binding(get: { isManaged && canManage }, set: { onToggleManaged($0) }))
                 .toggleStyle(.checkbox)
                 .labelsHidden()
+                .disabled(!canManage)
                 // `.help` 是补充说明，**不是名称**：读屏念的是名称，念不到 help。
                 // 空 label + labelsHidden 让这个勾选框在 AX 树上三条名称信道全空
                 // （P1-D 实测），读屏只念「复选框，未选中」——而它就是白名单开关本身。
                 // 名字必须带容器 id：一屏多行，不带 id 的话每一行念出来完全一样。
-                .accessibilityLabel(Text("Auto-start \(container.id.rawValue) after the runtime restarts"))
-                .help("Managed by supervisor: auto-started after the runtime restarts")
+                // 三元两臂显式 `LocalizedStringKey`：裸字面量在三元里可能被推断成 `String`，
+                // `Text(String)` 是 verbatim、不查目录——四语里只剩英文且不报任何错。
+                .accessibilityLabel(Text(
+                    canManage
+                        ? LocalizedStringKey("Auto-start \(container.id.rawValue) after the runtime restarts")
+                        : LocalizedStringKey("\(container.id.rawValue) is managed by a plugin and can't be auto-started")
+                ))
+                .help(
+                    canManage
+                        ? LocalizedStringKey("Managed by supervisor: auto-started after the runtime restarts")
+                        : LocalizedStringKey("Managed by a plugin: this app does not auto-start, start or stop it")
+                )
 
             Circle()
                 .fill(Self.color(for: container.state))
@@ -67,6 +79,10 @@ struct ContainerRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
+
+                if let owner = container.pluginOwner {
+                    PluginOwnerCaption(owner: owner, style: .orange)
+                }
             }
 
             Spacer(minLength: 8)
@@ -87,6 +103,8 @@ struct ContainerRow: View {
         .padding(.vertical, 6)
         .opacity(isStale ? VisualOpacity.dimmed : 1)
     }
+
+    private var canManage: Bool { !container.isPluginManaged }
 
     /// 状态颜色**只是提示，不是唯一信道**——右侧永远有文字标签。
     /// 只靠颜色区分状态，色觉障碍用户就读不出这个界面（WCAG 1.4.1）。

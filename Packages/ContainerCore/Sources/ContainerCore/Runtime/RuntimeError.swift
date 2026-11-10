@@ -59,6 +59,13 @@ public enum RuntimeError: Error, Equatable, Sendable {
     ///   靠嗅字符串分类，上游改一个字就无声失效（R14 的同一条教训）。
     case operationFailed(reason: String)
 
+    /// 这个容器归插件管（`com.apple.container.plugin` 标签，Day 29）：本 App **不发 start / stop**。
+    ///
+    /// 由 runtime 在 `fetch` 到的最新快照上判定、在任何副作用之前抛出。supervisor 把它当「跳过」，
+    /// 不当失败（`WhitelistReconcileEngine`）；其余消费者按 `.permanent`（重试不会改变归属）。
+    /// 必须是独立 case：混进 `.operationFailed` 就会判成 `.transient`、计入熔断。
+    case pluginManaged(ContainerID, owner: ContainerPluginOwner)
+
     /// create / clone 没有确定结果，或被本 App 挡下没有发出。只由 create / clone 产生，supervisor 路径不产生。
     /// 三种情形见 `RuntimeError.Creation`（Day 26 收成嵌套 case）。
     case creation(Creation)

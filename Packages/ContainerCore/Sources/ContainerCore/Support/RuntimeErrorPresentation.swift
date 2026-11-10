@@ -34,9 +34,27 @@ enum RuntimeErrorPresentation {
             )
         case .operationFailed(let reason):
             reason
+        case .pluginManaged(let id, let owner):
+            pluginManagedDetail(id: id, owner: owner, locale: locale)
         case .creation(let creation):
             creationDetail(creation, locale: locale)
         }
+    }
+
+    /// owner 是上游快照里的任意字串：走 `ContainerPluginOwnerPresentation.displayName`（单行化 + 截断）。
+    static func pluginManagedDetail(id: ContainerID, owner: ContainerPluginOwner, locale: Locale) -> String {
+        if let name = ContainerPluginOwnerPresentation.displayName(owner) {
+            return String(
+                coreLocalized:
+                    "Container \(id.rawValue) is managed by the plugin “\(name)”. This app does not start or stop it; use the plugin's own commands.",
+                locale: locale
+            )
+        }
+        return String(
+            coreLocalized:
+                "Container \(id.rawValue) is managed by a plugin. This app does not start or stop it; use the plugin's own commands.",
+            locale: locale
+        )
     }
 
     private static func creationDetail(_ creation: RuntimeError.Creation, locale: Locale) -> String {
@@ -75,7 +93,7 @@ enum RuntimeErrorPresentation {
             case .outcomeUnknown, .inProgress, .limitReached, .runtimeTooOldForRemoteImage:
                 creationDetail(creation, locale: locale)
             }
-        case .runtimeUnavailable, .containerNotFound, .mountSourceUnavailable, .operationFailed:
+        case .runtimeUnavailable, .containerNotFound, .mountSourceUnavailable, .operationFailed, .pluginManaged:
             nil
         }
     }

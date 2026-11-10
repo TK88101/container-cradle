@@ -70,7 +70,7 @@ final class AppModel {
     var whitelistURL: URL { whitelistStore.url }
 
     init(client: any ContainerRuntimeClient = AppModel.makeDefaultClient()) {
-        let store = WhitelistStore.default()
+        let store = Self.makeWhitelistStore()
         let status = SupervisorStatusStore()
 
         self.whitelistStore = store
@@ -134,12 +134,14 @@ final class AppModel {
             }
             self.updateLease = claim.lease
             self.updates = Self.makeUpdateStore(
-                supervisor: supervisor, whitelistStore: store, whitelistUI: whitelist, isPrimaryInstance: claim.isPrimary
+                supervisor: supervisor, whitelistStore: store, whitelistUI: whitelist,
+                client: client, containers: containerList, isPrimaryInstance: claim.isPrimary
             )
         }
         self.updateScheduler = RuntimeUpdateScheduler(store: updates, initialDelay: Self.updateInitialDelay)
         self.autoStarter = Self.makeAutoStarter(
-            supervisor: supervisor, whitelistStore: store, whitelistUI: whitelist, updates: updates, notifier: notifier
+            supervisor: supervisor, whitelistStore: store, whitelistUI: whitelist, containers: containerList,
+            updates: updates, notifier: notifier
         )
         self.lifecycle = Self.makeLifecycle(
             supervisor: supervisor, whitelist: whitelist, updates: updates, scheduler: updateScheduler,
@@ -301,6 +303,8 @@ final class AppModel {
         supervisor: Supervisor,
         whitelistStore: WhitelistStore,
         whitelistUI: WhitelistUIStore,
+        client: any ContainerRuntimeClient,
+        containers: ContainerListStore,
         isPrimaryInstance: Bool
     ) -> RuntimeUpdateStore {
         var commands: any RuntimeCommanding = RuntimeCommands()
@@ -318,6 +322,12 @@ final class AppModel {
                 await whitelistUI.awaitWrites()
                 return await whitelistStore.enabledIDs()
             },
+            // Day 29（Plan G5）：停机前此刻归插件管的容器——更新器不复原它们。运行时此时在跑，优先取新鲜列表；
+            // 失败回退菜单缓存（best-effort，Plan §6 R3）。`list()` 自带 XPC 超时，且这次读在 committed 段之前（R3-2）。
+            pluginContainerIDs: {
+                let known = (try? await client.list()) ?? containers.displayedContainers
+                return ManagedContainerSet.pluginIDs(in: known)
+            },
             // 先探一次再下达（R5）：更新器刚起回运行时，supervisor 可能还停在 runtimeDown，直接 forceReconcile 会被拒。
             requestManagedReconcile: { await reconcileManagedNow(supervisor: supervisor, whitelistUI: whitelistUI) },
             authorizationPrompt: { from, to in RuntimeUpdatePresentation.authorizationPrompt(from: from, to: to) }
@@ -331,6 +341,7 @@ final class AppModel {
         supervisor: Supervisor,
         whitelistStore: WhitelistStore,
         whitelistUI: WhitelistUIStore,
+        containers: ContainerListStore,
         updates: RuntimeUpdateStore,
         notifier: SupervisorNotifier
     ) -> RuntimeAutoStarter {
@@ -340,7 +351,9 @@ final class AppModel {
             preferences: UserDefaultsRuntimeAutoStartPreferences(),
             hasManagedContainers: {
                 await whitelistUI.awaitWrites()
-                return !(await whitelistStore.enabledIDs()).isEmpty
+                // Day 29：扣掉已知 plugin 容器（supervisor 会跳过它们）；列表还没加载过 ⇒ 不扣（Plan §6 R4）。
+                let enabled = await whitelistStore.enabledIDs()
+                return !ManagedContainerSet.effective(enabled: enabled, known: containers.displayedContainers).isEmpty
             },
             reconcileManagedNow: { await reconcileManagedNow(supervisor: supervisor, whitelistUI: whitelistUI) }
         )
@@ -382,6 +395,17 @@ final class AppModel {
         }
         #endif
         return LiveContainerRuntimeClient()
+    }
+
+    /// 白名单文件。DEBUG 可用 `-COFWhitelistPath <path>` 指到临时文件（Day 29 真机验收）：
+    /// `WhitelistStore.default()` 的路径不随 bundle id 变，另打包名的第二实例默认会写进用户的真白名单。
+    private static func makeWhitelistStore() -> WhitelistStore {
+        #if DEBUG
+        if let path = launchArgument("COFWhitelistPath"), !path.isEmpty {
+            return WhitelistStore(url: URL(fileURLWithPath: path))
+        }
+        #endif
+        return WhitelistStore.default()
     }
 
     #if DEBUG

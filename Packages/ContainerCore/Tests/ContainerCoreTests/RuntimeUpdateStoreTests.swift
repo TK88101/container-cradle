@@ -38,6 +38,7 @@ struct RuntimeUpdateStoreTests {
             verification: PackageVerification = .ok,
             downloadFailure: DownloadFailure? = nil,
             managed: Set<String> = [],
+            plugins: Set<String> = [],
             now: (@Sendable () -> Date)? = nil,
             primary: Bool = true,
             reconcileLimit: Duration = .seconds(30),
@@ -55,6 +56,7 @@ struct RuntimeUpdateStoreTests {
             let reconcileHook = self.reconcileHook
             let managedHook = self.managedHook
             let managedIDs = Set(managed.compactMap(ContainerID.init))
+            let pluginIDs = Set(plugins.compactMap(ContainerID.init))
             let fixedNow = RuntimeUpdateStoreTests.now
             let environment = RuntimeUpdateEnvironment(
                 feed: self.feed,
@@ -66,6 +68,7 @@ struct RuntimeUpdateStoreTests {
                 clock: clock,
                 log: updateLog,
                 managedContainerIDs: { await managedHook.run(); return managedIDs },
+                pluginContainerIDs: { pluginIDs },
                 requestManagedReconcile: { await reconcileHook.run(); log.append("reconcile") },
                 reconcileRequestLimit: reconcileLimit,
                 authorizationPrompt: { from, to in "update \(from) -> \(to)" }
