@@ -338,6 +338,8 @@ public final class RuntimeUpdateStore {
         let held = HeldRelease(state)
         let op = beginOperation(.checking)
         manualRequested = trigger == .manual
+        // C4：只在真正进了 `.checking` 之后记（上面三个 guard 挡掉的、合并进在途检查的都不记）。
+        environment.log.checkStarted(trigger: trigger)
         task = Task {
             await self.runCheck(op: op, held: held)
             self.operationEnded()
@@ -374,6 +376,16 @@ public final class RuntimeUpdateStore {
     }
 
     private func runCheck(op: Int, held: HeldRelease?) async {
+        // C4：与 `checkStarted` 严格成对。各决策点显式结算；没结算就离开（取消 / 被新操作取代）⇒ `.cancelled`。
+        // 只管日志，不影响任何控制流（codex R3 认可）。
+        var logged = false
+        func finish(_ outcome: CheckLogOutcome) {
+            guard !logged else { return }
+            logged = true
+            environment.log.checkFinished(outcome: outcome)
+        }
+        defer { finish(.cancelled) }
+
         let installedResult = await environment.commands.installedVersion()
         // 检查不算 committed，退出会取消我们：之后什么都不写、不再往下走（R7）。
         guard !Task.isCancelled else { return }
@@ -381,9 +393,11 @@ public final class RuntimeUpdateStore {
         switch installedResult {
         case .notInstalled:
             apply(op) { self.state = .notInstalled }
+            finish(.notInstalled)
             return
         case .unknown(let reason):
             apply(op) { self.state = .checkFailed(.installedVersionUnknown(reason)) }
+            finish(.installedUnknown)
             return
         case .installed(let version):
             guard apply(op, { self.lastKnownInstalled = version }) else { return }
@@ -392,6 +406,7 @@ public final class RuntimeUpdateStore {
 
         if let until = preferences.rateLimitedUntil, environment.now() < until {
             apply(op) { self.failCheck(.rateLimited(until: until), held: held, installed: installed) }
+            finish(.rateLimitedLocally)
             return
         }
 
@@ -403,8 +418,10 @@ public final class RuntimeUpdateStore {
         case .rateLimited(let until):
             preferences.rateLimitedUntil = until
             failCheck(.rateLimited(until: until), held: held, installed: installed)
+            finish(.rateLimited)
         case .failed(let failure):
             failCheck(.release(failure), held: held, installed: installed)
+            finish(.failed(CheckFailureKind(failure)))
         case .release(let release):
             preferences.lastSuccessfulCheck = environment.now()
             preferences.rateLimitedUntil = nil
@@ -412,9 +429,13 @@ public final class RuntimeUpdateStore {
             switch UpdatePolicy.decide(installed: installed, latest: release, skipped: preferences.skippedVersion, trigger: trigger) {
             case .upToDate(let version):
                 state = .upToDate(version)
+                finish(.upToDate(version))
             case .skipped(let installed, let release):
                 state = .skipped(installed: installed, release: release)
+                finish(.skipped(release.version))
             case .available(let installed, let release):
+                // 进安装**之前**结算（codex R1-C4b）：检查到此为止，之后的事归安装日志（job started …）。
+                finish(.available(release.version))
                 if trigger == .manual {
                     setState(.updating(release, .downloading))
                     await runInstall(release, from: installed, op: op)

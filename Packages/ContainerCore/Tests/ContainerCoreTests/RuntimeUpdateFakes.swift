@@ -229,9 +229,30 @@ final class SpyRuntimeUpdateLog: RuntimeUpdateLog, @unchecked Sendable {
         case restored(nonce: UUID, leftStopped: Bool, hold: RestoreHold, startOutcome: CommandOutcome?, unrestoredContainers: Int)
         case recovering(nonce: UUID, stopIssued: Bool, stateFile: PrivilegedJobStateFile?)
         case snapshotUnavailable(nonce: UUID)
+        case check(CheckEvent)
+    }
+    /// Plan 2026-11-13 C4：更新检查的一对日志。
+    enum CheckEvent: Equatable {
+        case started(UpdateTrigger)
+        case finished(CheckLogOutcome)
     }
     private let recorded = Mutex<[Event]>([])
-    var events: [Event] { recorded.withLock { $0 } }
+    /// 全部事件，按发生顺序（检查日志与 root 级日志交错）。
+    var allEvents: [Event] { recorded.withLock { $0 } }
+    /// 只有 root 级日志（本类型的原始语义；既有测试断言的是这一条序列）。
+    var events: [Event] {
+        allEvents.filter { if case .check = $0 { false } else { true } }
+    }
+    var checkEvents: [CheckEvent] {
+        allEvents.compactMap { if case .check(let event) = $0 { event } else { nil } }
+    }
+
+    func checkStarted(trigger: UpdateTrigger) {
+        recorded.withLock { $0.append(.check(.started(trigger))) }
+    }
+    func checkFinished(outcome: CheckLogOutcome) {
+        recorded.withLock { $0.append(.check(.finished(outcome))) }
+    }
 
     func jobStarted(nonce: UUID, target: RuntimeVersion, from: RuntimeVersion, digest: SHA256Digest) {
         recorded.withLock { $0.append(.started(nonce: nonce, target: target, from: from, digest: digest)) }

@@ -169,5 +169,5 @@
 /* Day 29 — plugin コンテナ */
 "Managed by a plugin" = "プラグインが管理";
 "Managed by plugin “%@”" = "プラグイン「%@」が管理";
-"Container %@ is managed by the plugin “%@”. This app does not start or stop it; use the plugin's own commands." = "コンテナ %1$@ はプラグイン「%2$@」が管理しています。このアプリでは起動・停止しません。プラグイン自身のコマンドを使ってください。";
-"Container %@ is managed by a plugin. This app does not start or stop it; use the plugin's own commands." = "コンテナ %@ はプラグインが管理しています。このアプリでは起動・停止しません。プラグイン自身のコマンドを使ってください。";
+"Container %@ is managed by the plugin “%@”. This app does not start, stop, or delete it; use the plugin's own commands." = "コンテナ %1$@ はプラグイン「%2$@」が管理しています。このアプリでは起動・停止・削除しません。プラグイン自身のコマンドを使ってください。";
+"Container %@ is managed by a plugin. This app does not start, stop, or delete it; use the plugin's own commands." = "コンテナ %@ はプラグインが管理しています。このアプリでは起動・停止・削除しません。プラグイン自身のコマンドを使ってください。";

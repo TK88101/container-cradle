@@ -169,5 +169,5 @@
 /* Day 29 — plugin 容器 */
 "Managed by a plugin" = "由外掛管理";
 "Managed by plugin “%@”" = "由外掛「%@」管理";
-"Container %@ is managed by the plugin “%@”. This app does not start or stop it; use the plugin's own commands." = "容器 %1$@ 由外掛「%2$@」管理。本 App 不會啟動或停止它；請使用該外掛自己的指令。";
-"Container %@ is managed by a plugin. This app does not start or stop it; use the plugin's own commands." = "容器 %@ 由外掛管理。本 App 不會啟動或停止它；請使用該外掛自己的指令。";
+"Container %@ is managed by the plugin “%@”. This app does not start, stop, or delete it; use the plugin's own commands." = "容器 %1$@ 由外掛「%2$@」管理。本 App 不會啟動、停止或刪除它；請使用該外掛自己的指令。";
+"Container %@ is managed by a plugin. This app does not start, stop, or delete it; use the plugin's own commands." = "容器 %@ 由外掛管理。本 App 不會啟動、停止或刪除它；請使用該外掛自己的指令。";

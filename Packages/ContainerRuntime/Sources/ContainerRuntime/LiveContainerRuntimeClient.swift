@@ -570,9 +570,12 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
         // 1. 前置复核。**存在性没确立就绝不当 absent**（codex #12）：确实不存在 → containerNotFound；
         //    runtime down / 超时 / 映射失败等无法确定存在性的失败由 `containerExists` 原样上抛
         //    （不谎称 not-found）。
-        guard try await containerExists(id) else {
+        guard let snapshot = try await existingSnapshot(id) else {
             throw RuntimeError.containerNotFound(id)
         }
+        // Plan 2026-11-13 C1：与 start / stop 同一道守卫——本 App 不对 plugin 容器做任何生命周期动作
+        // （删 builder 走 `container builder delete`）。判据在这次前置复核拿到的快照上，第一个副作用之前。
+        try refusePluginManaged(snapshot, id: id)
 
         // 2. delete(force: true)。
         do {
@@ -608,13 +611,18 @@ public struct LiveContainerRuntimeClient: ContainerRuntimeClient {
     /// 或把一次超时报成 not-found。穷尽 `switch`（无 default）：`RuntimeError` 加 case 时编译器强制在
     /// 这里重新决定它算不算「确定不存在」。
     private func containerExists(_ id: ContainerID) async throws(RuntimeError) -> Bool {
+        try await existingSnapshot(id) != nil
+    }
+
+    /// 同 `containerExists`，但交出快照（delete 的前置复核要在它上面判 plugin owner）。
+    /// 只有确定不存在（`.containerNotFound`）才是 nil，其余错误原样上抛（codex R1-C1a）。
+    private func existingSnapshot(_ id: ContainerID) async throws(RuntimeError) -> ContainerSnapshot? {
         do {
-            _ = try await fetch(id)
-            return true
+            return try await fetch(id)
         } catch {
             switch error {
             case .containerNotFound:
-                return false
+                return nil
             case .runtimeUnavailable, .operationFailed, .mountSourceUnavailable, .pluginManaged, .creation:
                 throw error
             }

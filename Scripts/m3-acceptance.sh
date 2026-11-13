@@ -15,12 +15,14 @@
 #   Scripts/m3-acceptance.sh            # 交互确认后跑
 #   Scripts/m3-acceptance.sh --yes      # 跳过确认（CI / 重复回归）
 #   TIMEOUT=60 Scripts/m3-acceptance.sh # 改等待上限（秒，默认 40）
+#   CANARY=open-connector Scripts/m3-acceptance.sh # 换靶子（默认 cof-canary；须在白名单里 enabled 且正在跑）
 #
 # 退出码：0 = PASS，1 = FAIL / 前置条件不满足。
 
 set -euo pipefail
 
-CANARY="cof-canary"
+# 靶子可覆盖：本机没有 cof-canary 时，用真白名单里已 enabled 的容器验生产场景（1.0 收口 Plan M1）。
+CANARY="${CANARY:-cof-canary}"
 TIMEOUT="${TIMEOUT:-40}"
 WHITELIST="$HOME/Library/Application Support/CradleOfFilth/supervisor.json"
 # Day 16 T10 勘误：Day 12 起 PRODUCT_NAME = "Container Cradle"，进程名随之改变

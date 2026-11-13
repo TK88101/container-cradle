@@ -122,7 +122,7 @@ struct ContainerDetailView: View {
             // Day 29：插件管理的容器不给启停按钮（runtime 已在 start / stop 上拒，UI 只是不让用户撞墙）。
             if let owner = container.pluginOwner {
                 PluginOwnerCaption(owner: owner, style: .secondary)
-                    .help("Use the plugin's own commands to start or stop it (for example, container builder start).")
+                    .help("Use the plugin's own commands to start, stop, or delete it (for example, container builder start).")
             } else {
                 switch container.state {
                 case .running:
@@ -143,7 +143,10 @@ struct ContainerDetailView: View {
             // Day 16 T9.9：删除入口。确认对话框**不打名字**——容器可重建，档次低于删
             // volume（上位 §3.4 裁定）。删除后白名单里可能留下孤儿 id：无害（reconcile
             // 只会跳过它），自动清理已登记 P2（B 段 §3.5），本轮不碰白名单写链。
-            Button("Delete…", role: .destructive) { pendingConfirmation = .delete }
+            // Plan 2026-11-13 C1：插件管理的容器不给删除入口（隐藏不禁用，与启停一致；runtime 的 delete 也拒）。
+            if container.pluginOwner == nil {
+                Button("Delete…", role: .destructive) { pendingConfirmation = .delete }
+            }
         }
         .disabled(actionInProgress != nil)
         .padding(.top, 4)

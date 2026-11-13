@@ -109,4 +109,33 @@ struct PluginLabelTests {
         try await client(upstream).stop(id: try id("open-connector"))
         #expect(await upstream.calls == [.get("open-connector"), .stop("open-connector")])
     }
+
+    // MARK: - delete 守卫（Plan 2026-11-13 C1）
+
+    /// 删 builder 应走插件自己的命令（`container builder delete`）。守卫在**同一次前置 get** 的快照上判 owner：
+    /// 只一次 `.get`、零 `deleteContainer`（codex R1-C1a 的调用序列）。
+    @Test(
+        "plugin 容器（停着 / 在跑）：delete 抛 pluginManaged，只 get 一次、不发 deleteContainer",
+        arguments: [RuntimeStatus.stopped, .running]
+    )
+    func deleteRefusesPlugin(status: RuntimeStatus) async throws {
+        let upstream = FakeUpstreamClient(snapshots: [try buildkit(status: status)])
+        let target = try id("buildkit")
+        await #expect(throws: RuntimeError.pluginManaged(target, owner: builder)) {
+            try await client(upstream).delete(id: target)
+        }
+        #expect(await upstream.calls == [.get("buildkit")])
+    }
+
+    @Test("machine 标签：delete 同样被拒")
+    func deleteRefusesMachine() async throws {
+        var snapshot = try Fixtures.openConnector()
+        snapshot.configuration.labels = [ResourceLabelKeys.plugin: ResourcePluginValues.machine]
+        let upstream = FakeUpstreamClient(snapshots: [snapshot])
+        let target = try id(snapshot.id)
+        await #expect(throws: RuntimeError.pluginManaged(target, owner: .machine)) {
+            try await client(upstream).delete(id: target)
+        }
+        #expect(await upstream.calls == [.get(snapshot.id)])
+    }
 }

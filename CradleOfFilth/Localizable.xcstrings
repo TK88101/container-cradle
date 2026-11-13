@@ -754,11 +754,11 @@
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "在此輸入名字" } }
       }
     },
-    "Use the plugin's own commands to start or stop it (for example, container builder start)." : {
+    "Use the plugin's own commands to start, stop, or delete it (for example, container builder start)." : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "起動・停止はプラグイン自身のコマンドで行ってください（例：container builder start）。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请用该插件自己的命令启动或停止它（例如 container builder start）。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請用該外掛自己的指令啟動或停止它（例如 container builder start）。" } }
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "起動・停止・削除はプラグイン自身のコマンドで行ってください（例：container builder start）。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请用该插件自己的命令启动、停止或删除它（例如 container builder start）。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請用該外掛自己的指令啟動、停止或刪除它（例如 container builder start）。" } }
       }
     },
     "Value" : {

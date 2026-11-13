@@ -440,6 +440,10 @@ public actor FakeContainerRuntimeClient: ContainerRuntimeClient {
     /// 删除容器：不存在 → `.containerNotFound`（不静默）；存在 → 移除。
     public func delete(id: ContainerID) throws(RuntimeError) {
         calls.append(.deleteContainer(id))
+        // 与 Live 同序（Plan 2026-11-13 C1）：拿到快照后先判 owner，在任何注入的上游失败之前。
+        if let owner = containers.first(where: { $0.id == id })?.pluginOwner {
+            throw .pluginManaged(id, owner: owner)
+        }
         if let error = injected[.deleteContainer] { throw error }
 
         guard let index = containers.firstIndex(where: { $0.id == id }) else {

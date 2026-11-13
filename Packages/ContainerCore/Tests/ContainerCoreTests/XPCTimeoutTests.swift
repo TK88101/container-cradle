@@ -102,6 +102,60 @@ struct XPCTimeoutTests {
         }
     }
 
+    /// Plan 2026-11-13 C5：操作先完成 ⇒ 计时器必须被取消，而不是睡满 `timeout`
+    /// （每个上游调用都经过这里，含 supervisor 每 2 秒的轮询）。
+    ///
+    /// 装置是**双向 gate**（codex R1-C5b）：注入的 sleep 先报告「已进入睡眠」，操作等到这个信号才返回——
+    /// 证的是「**已启动**的计时器被操作完成取消」。否则操作可能在计时器进 sleep 之前就 settle，
+    /// 正确实现下 sleep 的取消回调根本不会跑，测试会随机红。
+    /// 等取消信号**有上限**（`waitUntilFired`）：`Signal.wait()` 不可取消，`.timeLimit` 唤不醒它——
+    /// 不修时测试会无限挂住，而不是干净地红（实施时实测）。
+    @Test("操作先完成：已进入睡眠的计时器被取消（不睡满 timeout）", .timeLimit(.minutes(1)))
+    func cancelsTimerWhenOperationFinishesFirst() async throws {
+        let entered = Signal()
+        let cancelled = Signal()
+
+        let value = try await XPCTimeout.race(
+            after: .seconds(3600),
+            sleep: { duration in
+                await entered.fire()
+                try await withTaskCancellationHandler {
+                    try await Task.sleep(for: duration)
+                } onCancel: {
+                    Task { await cancelled.fire() }
+                }
+            },
+            operation: {
+                await entered.wait()
+                return 7
+            }
+        )
+
+        #expect(value == 7)
+        #expect(await cancelled.waitUntilFired(within: .seconds(5)), "计时器在操作完成后没有被取消")
+    }
+
+    /// codex R1-C5c：既有测试只覆盖「进来时已取消」，没钉住「已进入等待之后外层才取消」。
+    /// 操作不响应取消（真实 XPC 挂死），外层取消仍必须让 `race` 立即脱身。
+    @Test("等待中外层被取消（操作不响应取消）→ 及时抛 CancellationError", .timeLimit(.minutes(1)))
+    func throwsWhenCancelledWhileWaiting() async {
+        let started = Signal()
+
+        let task = Task {
+            try await XPCTimeout.race(after: .seconds(60)) {
+                await started.fire()
+                return await Self.hangForever()
+            }
+        }
+
+        await started.wait()
+        task.cancel()
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await task.value
+        }
+    }
+
     /// 超时时长必须原样带出来：给用户看的文案要说清「等了多久才放弃」。
     @Test("TimedOut 携带超时时长")
     func timedOutCarriesDuration() async {
@@ -133,5 +187,14 @@ private actor Signal {
     func wait() async {
         guard !fired else { return }
         await withCheckedContinuation { waiters.append($0) }
+    }
+
+    /// 有上限地等：到期仍未 fire ⇒ false（让「该发生的副作用没发生」干净地红，而不是挂住）。
+    func waitUntilFired(within limit: Duration) async -> Bool {
+        let deadline = ContinuousClock.now.advanced(by: limit)
+        while !fired, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return fired
     }
 }

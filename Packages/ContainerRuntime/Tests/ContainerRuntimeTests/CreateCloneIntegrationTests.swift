@@ -81,7 +81,13 @@ struct CreateCloneIntegrationTests {
         // list 失败就让 sweep 抛（与下面 volume 半边一致）：`try?` 静默空转会把残留藏起来（codex P2）。
         for container in try await client.list()
         where container.id.rawValue.hasPrefix(Self.namePrefix) {
-            try? await client.delete(id: container.id)
+            // Plan 2026-11-13 C1：app delete 拒 plugin 容器 ⇒ ⑥ / ⑦ 的残留只能走 CLI 逃生舱
+            // （否则 `try?` 会把「没删掉」静默吞掉）。cluster 标签的 CLI 按名删不掉，所以测试从不造它（F7）。
+            if container.isPluginManaged {
+                _ = try? cli(["delete", "--force", container.id.rawValue])
+            } else {
+                try? await client.delete(id: container.id)
+            }
         }
         for config in try await ClientVolume.list() where config.name.hasPrefix(Self.namePrefix) {
             if config.labels[Self.ownerLabelKey] == Self.ownerLabelValue {
@@ -271,16 +277,56 @@ struct CreateCloneIntegrationTests {
 
             await #expect(throws: RuntimeError.pluginManaged(id, owner: owner)) { try await client.start(id: id) }
             await #expect(throws: RuntimeError.pluginManaged(id, owner: owner)) { try await client.stop(id: id) }
+            // Plan 2026-11-13 C1：delete 也拒，容器还在。
+            await #expect(throws: RuntimeError.pluginManaged(id, owner: owner)) { try await client.delete(id: id) }
             #expect(try await client.list().first { $0.id == id }?.state == .stopped)
-
-            try await client.delete(id: id)
-            #expect(try await client.list().first { $0.id == id } == nil)
         } catch {
             _ = try? cli(["delete", "--force", name])   // CLI 逃生舱兜底（④）
             throw error
         }
 
+        // app 删不掉它（这正是被测行为）⇒ 收尾走 CLI，并核实真删掉了。
+        let removed = try cli(["delete", "--force", name])
+        #expect(removed.code == 0, "CLI 删除 plugin 靶子失败：\(removed.output)")
+        #expect(try await client.list().first { $0.id.rawValue == name } == nil)
         #expect(try await client.list().first { $0.id.rawValue == "buildkit" }?.state == buildkitBefore)
+    }
+
+    // MARK: - ⑦ Plan 2026-11-13 C3：machine 节点的真机靶子
+
+    /// 自建 `com.apple.container.plugin=machine` 的 `cof-test-*`（不启动）。machine 服务只认自己 bundle 仓里的 machine
+    /// （上游 `MachinesService.swift:146-153`，推测：它看不见这个冒充者）；CLI 显式按名删除只过滤 cluster（上游
+    /// `ContainerDelete.swift:71-73`）⇒ machine 靶子可清。**cluster 不造**：CLI 按名删不掉，崩溃残留无法清理（Plan F7）。
+    @Test("⑦ machine 标签：真 XPC 映射为 .machine（继而按列表政策隐藏）；start / stop / delete 都被拒；状态不动")
+    func machineLabelledContainerIsHiddenAndRefused() async throws {
+        try await sweepLeftovers()
+        try ensureTestImagePresent()
+
+        let client = LiveContainerRuntimeClient()
+        let name = uniqueName()
+        let created = try cli(["create", "--name", name, "--label", "com.apple.container.plugin=machine", Self.testImage])
+        guard created.code == 0 else { throw SmokeError.setupFailed("CLI create 失败：\(created.output)") }
+
+        do {
+            let id = try #require(ContainerID(name))
+            // 先证「真的建出来了、list 看得到」——否则「被隐藏」可能只是根本没建成（codex R1-C3a）。
+            let listed = try #require(try await client.list().first { $0.id == id })
+            #expect(listed.pluginOwner == .machine)
+            #expect(listed.pluginOwner?.isHiddenFromContainerList == true)
+            #expect(listed.state == .stopped)
+
+            await #expect(throws: RuntimeError.pluginManaged(id, owner: .machine)) { try await client.start(id: id) }
+            await #expect(throws: RuntimeError.pluginManaged(id, owner: .machine)) { try await client.stop(id: id) }
+            await #expect(throws: RuntimeError.pluginManaged(id, owner: .machine)) { try await client.delete(id: id) }
+            #expect(try await client.list().first { $0.id == id }?.state == .stopped)
+        } catch {
+            _ = try? cli(["delete", "--force", name])
+            throw error
+        }
+
+        let removed = try cli(["delete", "--force", name])
+        #expect(removed.code == 0, "CLI 删除 machine 靶子失败：\(removed.output)")
+        #expect(try await client.list().first { $0.id.rawValue == name } == nil)
     }
 
     // MARK: - ⑤ Day 25：超时之后上游照样建成 → 凭 operationID 取回（Plan 2026-10-22 T8）

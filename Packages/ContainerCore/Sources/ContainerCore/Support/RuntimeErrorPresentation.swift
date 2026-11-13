@@ -46,13 +46,13 @@ enum RuntimeErrorPresentation {
         if let name = ContainerPluginOwnerPresentation.displayName(owner) {
             return String(
                 coreLocalized:
-                    "Container \(id.rawValue) is managed by the plugin “\(name)”. This app does not start or stop it; use the plugin's own commands.",
+                    "Container \(id.rawValue) is managed by the plugin “\(name)”. This app does not start, stop, or delete it; use the plugin's own commands.",
                 locale: locale
             )
         }
         return String(
             coreLocalized:
-                "Container \(id.rawValue) is managed by a plugin. This app does not start or stop it; use the plugin's own commands.",
+                "Container \(id.rawValue) is managed by a plugin. This app does not start, stop, or delete it; use the plugin's own commands.",
             locale: locale
         )
     }

@@ -23,6 +23,39 @@ public protocol RuntimeUpdateLog: Sendable {
     func recovering(nonce: UUID, stopIssued: Bool, stateFile: PrivilegedJobStateFile?)
     /// 附录 C4：运行时在跑、停机前读不到在跑容器 ⇒ 不停机、放弃本次（root 等不到停机会 stop-timeout，什么都不装）。
     func snapshotUnavailable(nonce: UUID)
+    /// Plan 2026-11-13 C4：一次更新检查**真正发起**（已进 `.checking`）。合并进在途检查、非主实例都不记。
+    func checkStarted(trigger: UpdateTrigger)
+    /// 同一次检查的结局，每个 `checkStarted` 恰好一条。手动检查发现新版时在**进安装之前**记。
+    func checkFinished(outcome: CheckLogOutcome)
+}
+
+/// 更新检查结局的 allowlist（Plan 2026-11-13 C4）。只有 case 名与规范化版本号——**不带任何外部文本**
+/// （feed 错误详情、HTTP 码、读版本失败的 reason 一律不进日志，codex R1-C4c），可以放心记成 `.public`。
+public enum CheckLogOutcome: Sendable, Equatable {
+    case notInstalled
+    case installedUnknown
+    /// 本地记着的 GitHub 限流还没到期：这次没发请求。
+    case rateLimitedLocally
+    case rateLimited
+    case failed(CheckFailureKind)
+    case upToDate(RuntimeVersion)
+    case skipped(RuntimeVersion)
+    case available(RuntimeVersion)
+    /// 已开始的检查在出结论前被取消（退出）。
+    case cancelled
+}
+
+/// `ReleaseCheckFailure` 的类别，**无关联值**（原值带不可信文本 / 任意 HTTP 码）。
+public enum CheckFailureKind: String, Sendable, Equatable {
+    case network, http, feed
+
+    init(_ failure: ReleaseCheckFailure) {
+        switch failure {
+        case .network: self = .network
+        case .http: self = .http
+        case .feed: self = .feed
+        }
+    }
 }
 
 /// 复原没做完的原因（日志的 allowlist 字段，R4 C）：分得清「被锁挡住」「探不清锁」「起不来」「刻意不拉」「请求没送达」「不归我们」。
@@ -79,6 +112,35 @@ public struct OSLogRuntimeUpdateLog: RuntimeUpdateLog {
 
     public func recovering(nonce: UUID, stopIssued: Bool, stateFile: PrivilegedJobStateFile?) {
         log.notice("recovering nonce=\(nonce.uuidString, privacy: .public) stopIssued=\(stopIssued, privacy: .public) stateFile=\(Self.describe(stateFile), privacy: .public)")
+    }
+
+    public func checkStarted(trigger: UpdateTrigger) {
+        log.notice("check started trigger=\(Self.describe(trigger), privacy: .public)")
+    }
+
+    public func checkFinished(outcome: CheckLogOutcome) {
+        log.notice("check finished outcome=\(Self.describe(outcome), privacy: .public)")
+    }
+
+    static func describe(_ trigger: UpdateTrigger) -> String {
+        switch trigger {
+        case .automatic: "automatic"
+        case .manual: "manual"
+        }
+    }
+
+    static func describe(_ outcome: CheckLogOutcome) -> String {
+        switch outcome {
+        case .notInstalled: "notInstalled"
+        case .installedUnknown: "installedUnknown"
+        case .rateLimitedLocally: "rateLimitedLocally"
+        case .rateLimited: "rateLimited"
+        case .failed(let kind): "failed(\(kind.rawValue))"
+        case .upToDate(let version): "upToDate(\(version.description))"
+        case .skipped(let version): "skipped(\(version.description))"
+        case .available(let version): "available(\(version.description))"
+        case .cancelled: "cancelled"
+        }
     }
 
     // MARK: - allowlist 渲染（只吐结果名 / 数字，绝不吐外部文本）

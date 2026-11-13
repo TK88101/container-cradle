@@ -57,6 +57,15 @@ public enum XPCTimeout {
         after timeout: Duration,
         operation: @escaping @Sendable () async throws -> T
     ) async throws -> T {
+        try await race(after: timeout, sleep: { try await Task.sleep(for: $0) }, operation: operation)
+    }
+
+    /// `sleep` 只为测试注入（Plan 2026-11-13 C5：证明操作先完成时计时器被取消）。生产只走上面的公开重载。
+    static func race<T: Sendable>(
+        after timeout: Duration,
+        sleep: @escaping @Sendable (Duration) async throws -> Void,
+        operation: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
         let state = Mutex<State<T>>(.fresh)
 
         // 在 continuation **之外**启动：`onCancel` 要够得着它。
@@ -121,21 +130,25 @@ public enum XPCTimeout {
                     return
                 }
 
+                let timer = Task {
+                    // `try?`：这个计时器自己被取消不是失败——只是没人再需要它了。
+                    try? await sleep(timeout)
+                    guard !Task.isCancelled else { return }
+
+                    work.cancel()
+                    settle(.failure(TimedOut(after: timeout)))
+                }
+
                 Task {
                     do {
                         settle(.success(try await work.value))
                     } catch {
                         settle(.failure(error))
                     }
-                }
-
-                Task {
-                    // `try?`：这个计时器自己被取消不是失败——只是没人再需要它了。
-                    try? await Task.sleep(for: timeout)
-                    guard !Task.isCancelled else { return }
-
-                    work.cancel()
-                    settle(.failure(TimedOut(after: timeout)))
+                    // 先 settle（谁先完成谁说了算）、再回收计时器：否则每次调用都留一个 Task 睡满 timeout
+                    // （Plan 2026-11-13 C5）。外层取消路径不回收——要让 `onCancel` 够得着它得引入共享句柄，
+                    // 重开「取消先到、计时器后装」的竞态（codex R2 收回）；那条路径睡满即止、settle 已是 no-op。
+                    timer.cancel()
                 }
             }
         } onCancel: {

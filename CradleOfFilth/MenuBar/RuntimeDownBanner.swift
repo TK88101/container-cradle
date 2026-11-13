@@ -58,7 +58,7 @@ struct RuntimeDownBanner: View {
         case .runtimeUnavailable: "bolt.slash"
         case .containerNotFound: "questionmark.circle"
         case .mountSourceUnavailable: "externaldrive.badge.questionmark"
-        // `.pluginManaged` 只由 start / stop 产生，列表刷新到不了这里；穷尽 switch 要求表态，沿用通用失败。
+        // `.pluginManaged` 只由 start / stop / delete 产生，列表刷新到不了这里；穷尽 switch 要求表态，沿用通用失败。
         case .operationFailed, .pluginManaged, .creation: "exclamationmark.triangle"
         }
     }

@@ -234,4 +234,44 @@ struct PluginExclusionTests {
         #expect(await client.calls == [.stop(id("buildkit"))])
         #expect(try await client.list().first?.state == .running)
     }
+
+    // MARK: - delete（Plan 2026-11-13 C1）
+
+    /// Fake 与 Live 同语义（防 ActionStore 测试假绿）。Fake 的 call log 只证「ActionStore 发起了请求」，
+    /// Live 不发上游 `deleteContainer` 由 runtime 的 `PluginLabelTests` 证（codex R1-C1b）。
+    @Test("Fake：plugin 容器 delete 抛 pluginManaged，容器还在")
+    func fakeRefusesDelete() async throws {
+        let client = FakeContainerRuntimeClient(containers: [container("buildkit", .stopped, owner: builder)])
+        await #expect(throws: RuntimeError.pluginManaged(id("buildkit"), owner: builder)) {
+            try await client.delete(id: id("buildkit"))
+        }
+        #expect(try await client.list().map(\.id) == [id("buildkit")])
+    }
+
+    @MainActor final class Counter { var count = 0 }
+
+    @Test("ActionStore delete plugin 容器 → deleteFailed(pluginManaged)、容器未删、完成回调一次")
+    @MainActor
+    func deleteRefusedThroughStore() async throws {
+        let client = FakeContainerRuntimeClient(containers: [container("buildkit", .stopped, owner: builder)])
+        let completed = Counter()
+        let store = ContainerActionStore(client: client) { completed.count += 1 }
+
+        await store.delete(id: id("buildkit"))
+
+        #expect(store.error(for: id("buildkit")) == .deleteFailed(.pluginManaged(id("buildkit"), owner: builder)))
+        #expect(try await client.list().map(\.id) == [id("buildkit")])
+        #expect(completed.count == 1)
+    }
+
+    @Test("删除被拒的文案：四语非空、带容器名，且说明「也不删除」", arguments: ["en", "zh-Hans", "zh-Hant", "ja"])
+    func deleteRefusedMessage(lang: String) {
+        let failure = ContainerActionStore.ActionFailure.deleteFailed(.pluginManaged(id("buildkit"), owner: builder))
+        let message = ContainerActionPresentation.message(for: failure, locale: Locale(identifier: lang))
+        #expect(message.contains("buildkit"))
+        let deleteWord = ["en": "delete", "zh-Hans": "删除", "zh-Hant": "刪除", "ja": "削除"][lang]!
+        // 「Delete failed:」前缀本身也含删除二字 ⇒ 只看详情部分（pluginManaged 的说明句）。
+        let detail = RuntimeErrorPresentation.detail(.pluginManaged(id("buildkit"), owner: builder), locale: Locale(identifier: lang))
+        #expect(detail.contains(deleteWord), "\(lang) 的 pluginManaged 说明没提到删除：\(detail)")
+    }
 }
